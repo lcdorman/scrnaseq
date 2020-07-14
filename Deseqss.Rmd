@@ -1,0 +1,157 @@
+---
+title: "SingleCellDeseq2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+library(Seurat)
+dir<-"~/Desktop/Nick/Data"
+setwd(dir)
+library(ggplot2)
+library(DESeq2)
+
+```
+
+```{r}
+file="MG_NS_Part4.RData"
+load(file=file.path(dir,file))
+MG_NS
+```
+
+Name the raw data table "counts"
+
+
+```{r}
+sobject<-MG_NS
+sobject = subset(sobject,celltypecluster %in% c("WB_0","WB_1"))
+sobject = subset(sobject,sample_description %in% c("Whole_Brain"))
+counts<-GetAssayData(sobject,slot = "counts")
+head(colnames(counts))
+head(rownames(counts))
+```
+
+Now look in the metadata from this object to get the cell identifiers. I care about the cluster identity, which in this case can be seen in the "bias" column. 
+
+```{r}
+cell.labels<-as.factor(sobject$celltypecluster)
+table(cell.labels)
+levels(cell.labels)
+table(droplevels(cell.labels))
+cell.labels<-droplevels(cell.labels) #remove an empty level
+table(cell.labels)
+#nHB2=length(cell.labels[cell.labels=="HB_2"]) #or whatever labels you used
+#nHB3=length(cell.labels[cell.labels=="HB_3"])
+nWB0=length(cell.labels[cell.labels=="WB_0"])
+nWB1=length(cell.labels[cell.labels=="WB_1"])
+#nHB2
+#nHB3
+nWB1
+nWB0
+
+##Group any clusters together to get two groups to compare. If you want to isolate two clusters, use the subset method above instead. 
+cell.labels<-as.factor(sobject$celltypecluster)
+table(cell.labels)
+levels(cell.labels)
+new<-levels(cell.labels)
+```
+
+
+Eliminate any genes with no expression in your subset
+
+```{r}
+sum(duplicated(rownames(counts)))
+keep<-Matrix::rowSums(counts)>0
+counts<-counts[keep,]
+nGenes<-length(counts[,1])
+```
+Now we will look at the effective library size
+
+```{r}
+coverage <- Matrix::colSums(counts)/nGenes
+ord <- order(cell.labels)
+bar.positions <- barplot(coverage[ord],col=cell.labels[ord],xaxt='n',ylab="Counts per gene")
+axis(side=1,at=c(bar.positions[nWB0/2],bar.positions[nWB0+nWB1/2]),labels=c("WB0","WB1"),tick=FALSE)
+```
+Remove any cells with very low expression (Note that I've already done this, so none should be removed)
+
+```{r}
+covlim=0.01
+counts <- counts[,coverage>covlim]
+cell.labels <- cell.labels[coverage>covlim]
+coverage <- coverage[coverage>covlim]
+nCells <- length(cell.labels)
+nCells
+```
+Now use DESeq2 to analyze: 
+
+```{r}
+dds <- DESeqDataSetFromMatrix(counts,DataFrame(cell.labels), ~cell.labels)
+```
+```{r}
+dds <- estimateSizeFactors(dds,type = "iterate")
+
+```
+```{r}
+dds = estimateDispersions(dds,fitType = 'local')
+dds = nbinomWaldTest(dds)
+#dds <- DESeq(dds, fitType='local')
+```
+
+```{r}
+res<-results(dds)
+```
+
+
+
+#from my regular deseq2 script
+
+```{r}
+resDE<-results(dds,cooksCutoff=FALSE,contrast=c("cell.labels","WB_0","WB_1"))
+##resDE<-results(ddsDE,cooksCutoff=FALSE,addMLE=TRUE,contrast=c("condition","treated","control"))
+##cooksCutoff related to removing p-values from extreme count outliers
+##to order the results by adjusted p-value
+
+resOrdered<-resDE[order(resDE$padj),]
+##number of results that are significant
+sig_sum<-sum(resDE$padj<0.05,na.rm=TRUE)
+#remove all "na" values and replace with 1
+remove_na<-function(dataset){
+        for (i in 1:length(dataset)){
+                if (is.na(dataset[i])) dataset[i]=1
+        }
+        dataset
+}
+```
+
+```{r}
+resDE$padj<-remove_na(resDE$padj)
+#set alpha
+save(resDE,file = file.path(dir,"deseqWB0v1.RData"))
+sig<-subset(resDE,padj<0.01)
+dim(sig)
+```
+
+```{r}
+DE<-as.data.frame(sig)
+DEordered<-DE[order(DE$log2FoldChange),]
+DEorderedup<-DEordered[DEordered$log2FoldChange>0,] #only the genes that increased
+write.table(DEordered,file.path(dir,"yourfilename.txt"),sep="\t")
+```
+
+
+
+
+

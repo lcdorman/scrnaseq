@@ -1,0 +1,944 @@
+---
+title: "Stevens analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+```{r}
+load("/Users/whippoorwill/Desktop/Sequencing/Stevens/Raw Data/stevensraw.RData")
+```
+
+Add metadata from colnames
+```{r}
+Cells = colnames(stevens)
+meta = sapply(Cells,function(x)strsplit(x,split = "-"))
+length(meta)
+meta[1]
+age = sapply(meta, function(x)x[[2]])
+sex = sapply(meta, function(x)x[[3]])
+individual = sapply(meta, function(x)x[[4]])
+individual = sapply(individual, function(x)strsplit(x,"\\."))
+individual = sapply(individual, function(x)x[[1]])
+age[1]
+sex[1]
+individual[1]
+length(age)
+stevens$age = age
+stevens$sex = sex
+sex = as.factor(stevens$sex)
+levels(sex) = c(rep("F",2),rep("M",3))
+stevens$sex = sex
+stevens$mouse = individual
+stevens = subset(stevens, subset = mouse != "percoll")
+stevens = subset(stevens, subset = mouse != "nopercoll")
+condition = as.factor(stevens$mouse)
+levels(condition) = c(rep("Ctrl",20),"LPC","Saline")
+stevens$condition = condition
+#save(stevens,file = "/Users/whippoorwill/Desktop/Sequencing/Stevens/Raw Data/stevensrawnofilter.RData")
+```
+
+
+QC - decide on final filtering parameters, look for clear outliers/differences between samples. These are quantiles of cells. Also shows you the variability between cells (and between samples)
+5% quantiles for number of genes per cell per sample - nGene is in the metadata for each cell, run quantiles on each sample from 0-1 in increments of 0.05
+
+
+```{r}
+setwd("~/Desktop/plots")
+setEPS()
+postscript("nCount_all.eps")
+VlnPlot(stevens,features = c("nCount_RNA"),group.by = "mouse",pt.size = 0.00)
+dev.off()
+
+setEPS()
+postscript("percent_mito.eps")
+VlnPlot(stevens,features = c("percent.mito"),group.by = "mouse",pt.size = 0.001)
+dev.off()
+
+setEPS()
+postscript("nFeature_all.eps")
+VlnPlot(stevens,features = c("nFeature_RNA"),group.by = "mouse",pt.size = 0.00)
+dev.off()
+```
+
+Show 5% quantiles for mitochondrial genes. Note the large gap between 95%, 100% - maybe filter the top 5% of mt high-expressing cells. But you need to think about what those cells are really doing. Are they dead? Highly active/reactive? 
+```{r}
+#My data
+mlo = 0.0000
+mhi = 7.5
+clo = 5000 #2500?
+chi = 35000
+flo = 2500 #ok? or 3000
+fhi = 7500
+
+#Stevens
+mlo = -Inf
+mhi = 2
+clo = 650 
+chi = 50000
+flo = 500 
+fhi = 5000
+
+```
+
+
+Plot the number of cells each gene is represented by - i.e. how many cells express any given gene? Ordered from rare to common genes. So you might consider focusing on genes that are relatively well expressed across the sample, or you might care about genes expressed only in a small subset of cells. The >=2 refers to read number per cell. 
+```{r}
+plot(sort(Matrix::rowSums(GetAssayData(stevens)>=2)),xlab="gene rank",ylab="number of cells",main="Cells per genes ( >= 2 )")
+#median(rowSums(GetAssayData(LD1)>=2))
+```
+Violin plot of 1) number of genes, 2) number of UMI and 3) percent mitochondrial genes
+```{r}
+setwd("~/Desktop/plots")
+setEPS()
+postscript("nFeature_RNAstevens.eps")
+VlnPlot(
+  stevens,
+  c("nFeature_RNA"),
+  pt.size = 0) + geom_abline(intercept = fhi, slope = 0, linetype = "dashed",color = "red", size = .8) + geom_abline(intercept = flo, slope = 0, linetype = "dashed",color = "black", size = .8)
+dev.off()
+
+setEPS()
+postscript("nCount_RNAstevens.eps")
+VlnPlot(
+  stevens,
+  c("nCount_RNA"),
+  pt.size = 0) + geom_abline(intercept = chi, slope = 0, linetype = "dashed",color = "red", size = .8) + geom_abline(intercept = clo, slope = 0, linetype = "dashed",color = "black", size = .8)
+dev.off()
+
+setEPS()
+postscript("percentmitostevens.eps")
+VlnPlot(
+  stevens,
+  c("percent.mito"),
+  pt.size = 0)+ geom_abline(intercept = mhi, slope = 0, linetype = "dashed",color = "red", size = .8) + geom_abline(intercept = mlo, slope = 0, linetype = "dashed",color = "black", size = .8)
+dev.off()
+```
+
+Gene Plot, scatter plot of gene expression across cells, (colored by sample) - sequencing depth relative to genes; looking for similarity across samples. Some cell types can have relatively few genes, but highly expressed, could show up as a second arc below the one seen here (should contain all samples though)
+```{r}
+FeatureScatter(
+  stevens, "nCount_RNA", "nFeature_RNA") + geom_vline(xintercept = clo) + geom_hline(yintercept = flo)
+
+FeatureScatter(
+  stevens, "nCount_RNA", "percent.mito") + geom_vline(xintercept = clo) 
+
+FeatureScatter(object=stevens,"nFeature_RNA","percent.mito") + geom_vline(xintercept = flo)
+
+```
+
+
+
+
+Filtering cells: note that they are taking these filters and duplicating them across all samples. Use -Inf instead of 0 because not all the filters have to be positive values, and to avoid any errors due to truncation. 
+
+How to select filters??? noise vs signal - get them from the violin plots and the matrix, capture the bulk of cells but exclude outliers (say with mtDNA filter) - can also look at percentiles, maybe get rid of top 5% since it was very different from the rest. Basically eliminate outliers and don't include cells that have hardly any genes or have a ton of genes expressed
+
+```{r}
+table(stevens$mouse)
+stevens = subset(stevens, subset = percent.mito>mlo & percent.mito < mhi)
+table(stevens$mouse)
+stevens = subset(stevens, subset = nCount_RNA>clo & nCount_RNA < chi)
+table(stevens$mouse)
+stevens = subset(stevens, subset = nFeature_RNA>flo & nFeature_RNA < chi)
+table(stevens$mouse)
+stevens <- NormalizeData(stevens,normalization.method = "LogNormalize", scale.factor = 10000)
+
+```
+
+```{r}
+VlnPlot(stevens,c("Cx3cr1","Hmbs","Aif1","Actb"))
+VlnPlot(mgAVM02,c("Cx3cr1","Hmbs","Aif1","Actb"),group.by = "celltype")
+save(stevens,file = "/Users/whippoorwill/Desktop/Sequencing/Stevens/Raw Data/stevensfiltered.RData")
+```
+```{r}
+#load("/Users/whippoorwill/Desktop/Sequencing/Stevens/Raw Data/stevensfiltered.RData")
+```
+
+
+Normalize the data - counts per 10k (per million makes no sense) - set by the "scale.factor". Raw data has the original data; the data slot has the filtered data (from above); the normalization will work on the raw data but only pulls the cells that are included in your filtered "data" and store the normalization as data (NOT the scale data slot) - so it isn't working on the filtered data, it's working on the raw data. The only filter they take into account is for cells - you can't filter out genes before normalization. 
+
+
+
+Filtering out genes in Seurat - use AFTER normalization. Works on data object (i.e. normalized, filtered data). Currently set to eliminate genes expressed in fewer than 100 cells. 
+Option A: standard
+
+```{r}
+stevens<-FindVariableFeatures(stevens, selection.method = "vst", nfeatures = 6000)
+top10 <- head(VariableFeatures(stevens),10)
+plot1 <- VariableFeaturePlot(stevens)
+plot2 <- LabelPoints(plot=plot1, points = top10, repel = T, xnudge = 0, ynudge = 0)
+plot2
+
+VlnPlot(stevens,c("Hmbs","Fcrls"))
+```
+
+Scale the data
+```{r}
+all.genes<-rownames(stevens)
+var.genes = VariableFeatures(stevens)
+stevens<-ScaleData(stevens,features = c(var.genes,'Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1', 'Hexb'))
+
+```
+Scale both together with combined variable genes
+```{r}
+#stevenssub = subset(stevens, cells = sample(colnames(stevens),10000,replace = F))
+#library(fastICA)
+datamatrix = GetAssayData(stevenssub,slot = "scale.data")
+ICA1 = fastICA(datamatrix, n.comp = 40, alg.typ = c("parallel","deflation"),
+        fun = c("logcosh","exp"), alpha = 1.0, method = c("R","C"),
+        row.norm = FALSE, maxit = 200, tol = 1e-04, verbose = FALSE,
+        w.init = NULL)
+
+```
+```{r}
+par(mfrow = c(1, 3))
+plot(ICA1$X, main = "Pre-processed data")
+plot(ICA1$X %*% ICA1$K, main = "PCA components")
+plot(ICA1$S, main = "ICA components")
+
+#Sort each ICA by top 10 genes: 
+list = {}
+for (i in 1:40){
+  genevals = ICA1$S[,i]
+  sortgenes = genevals[order(genevals,decreasing = T)]
+  top10 = names(sortgenes[1:10])
+  list[[i]] = top10
+}
+
+dim(ICA1$A)
+dim(ICA1$S)
+dim(ICA1$W)
+dim(ICA1$K)
+dim(ICA1$X)
+#XKW = S
+#columns of left = rows of right
+
+s = ICA1$X %*% ICA1$K
+s = s %*% ICA1$W
+#does this equal S? yes
+#Remove 6, 7,11
+#S is the gene matrix (source matrix)
+#W is the unmixing matrix (multiplied by X, gives S)
+```
+
+```{r}
+#retrieve cell embeddings 
+ica = ICA1$K
+feat = ICA1$S
+rownames(ica) = colnames(ICA1$X)
+#we first label the columns to ensure downstream consistency
+colnames(ica) <- paste0("ICA_", 1:40)
+colnames(feat) <- paste0("ICA_", 1:40)
+# We will now store this as a custom dimensional reduction called 'ica'
+stevenssub[["ica"]] <- CreateDimReducObject(embeddings = ica, loadings = feat, key = "ICA_", assay = DefaultAssay(stevenssub))
+
+stevenssub <- ProjectDim(stevenssub, reduction = "ica",dims.print = 1:20)
+# We can now use this as you would any other dimensional reduction in all downstream functions
+
+```
+
+```{r}
+DimPlot(stevenssub, reduction = "ica", pt.size = 0.5,group.by = "mouse",dims = c(dim,dim+1))
+dim = dim+1
+```
+
+
+Dimensionality reduction. Note that UMAP can be run directly on most variable features as well. 
+```{r}
+dim = c(1:5,8:10,12:20)
+stevenssub<-RunUMAP(stevenssub,reduction = "ica",dims = dim, verbose = F)
+stevenssub<-FindNeighbors(stevenssub,reduction = "ica", dims=dim,verbose=F)
+set.seed(1)
+stevenssub<-FindClusters(stevenssub,verbose=F,resolution = 0.5)
+```
+```{r}
+#save(stevens,file = "/Users/whippoorwill/Desktop/Sequencing/Stevens/Raw Data/stevensumap.RData")
+```
+
+Plot, find extraneous clusters: 
+```{r}
+DimPlot(stevenssub, group.by = "seurat_clusters",label = T)
+DimPlot(stevenssub, group.by = "age")
+FeaturePlot(stevenssub, "Cx3cr1")
+FeaturePlot(stevenssub, "P2ry12")
+FeaturePlot(stevenssub, "Aif1")
+FeaturePlot(stevenssub, c("Olig9","Rbfox3","Pdgfra","Aldh1l1","Mbp","Pecam1"))
+
+#Remove cluster 8
+stevenssub = subset(stevenssub, subset = seurat_clusters %in% c(0:7,9:11))
+
+#Repeat clustering
+
+```
+
+
+```{r}
+all.genes<-rownames(stevenssub2)
+var.genes = c(VariableFeatures(stevenssub2),'Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1', 'Hexb')
+stevenssub2<-ScaleData(stevenssub2,features = c(var.genes,'Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1', 'Hexb'))
+
+```
+Scale both together with combined variable genes
+```{r}
+#stevenssub = subset(stevens, cells = sample(colnames(stevens),10000,replace = F))
+#library(fastICA)
+datamatrix = GetAssayData(stevenssub2,slot = "scale.data")
+ICA1 = fastICA(datamatrix, n.comp = 40, alg.typ = c("parallel","deflation"),
+        fun = c("logcosh","exp"), alpha = 1.0, method = c("R","C"),
+        row.norm = FALSE, maxit = 200, tol = 1e-04, verbose = FALSE,
+        w.init = NULL)
+
+```
+
+```{r}
+par(mfrow = c(1, 3))
+plot(ICA1$X, main = "Pre-processed data")
+plot(ICA1$X %*% ICA1$K, main = "PCA components")
+plot(ICA1$S, main = "ICA components")
+
+#Sort each ICA by top 10 genes: 
+list = {}
+for (i in 1:40){
+  genevals = ICA1$S[,i]
+  sortgenes = genevals[order(genevals,decreasing = T)]
+  top10 = names(sortgenes[1:10])
+  list[[i]] = top10
+}
+```
+
+```{r}
+#retrieve cell embeddings 
+ica = ICA1$K
+feat = ICA1$S
+rownames(ica) = colnames(ICA1$X)
+#we first label the columns to ensure downstream consistency
+colnames(ica) <- paste0("ICA_", 1:40)
+colnames(feat) <- paste0("ICA_", 1:40)
+# We will now store this as a custom dimensional reduction called 'ica'
+stevenssub2[["ica"]] <- CreateDimReducObject(embeddings = ica, loadings = feat, key = "ICA_", assay = DefaultAssay(stevenssub2))
+
+stevenssub2 <- ProjectDim(stevenssub2, reduction = "ica",dims.print = 1:20)
+# We can now use this as you would any other dimensional reduction in all downstream functions
+#remove 3, 7, 11
+```
+
+
+```{r}
+DimPlot(stevenssub2, reduction = "ica", pt.size = 0.5,group.by = "mouse",dims = c(dim,dim+1))
+dim = dim+1
+```
+
+```{r}
+dim = c(1:2,4:6,8:10,12:20)
+stevenssub2<-RunUMAP(stevenssub2,reduction = "ica",dims = dim, verbose = F)
+stevenssub2<-FindNeighbors(stevenssub2,reduction = "ica", dims=dim,verbose=F)
+set.seed(1)
+stevenssub2<-FindClusters(stevenssub2,verbose=F,resolution = 0.5)
+```
+
+
+```{r}
+DimPlot(stevenssub2, group.by = "seurat_clusters",label = T)
+DimPlot(stevenssub2, group.by = "mouse",label = T)
+DimPlot(stevenssub2, group.by = "age")
+FeaturePlot(stevenssub2, "Fcrls")
+#FeaturePlot(stevenssub2, "Ccr2")
+#FeaturePlot(stevenssub2, "Rrm2")
+FeaturePlot(stevenssub2, c("Spp1","H2-Aa","Ube2c","Fabp5"))
+
+#match with paper? 
+#E14: 2,6,10 paper: 2,3,5,6
+#P4/5: 5,6,3 paper 1,2,4
+#P30: 0,1 paper: 7, 8/9
+#P100: 4,7 paper: 7,8/9
+#Old: 0,8 paper: 9,8; 7
+#Injured: 7 paper: 9
+
+
+#P2ry12 4,5L
+#Tmem119 1L, 4L,8L,0L
+#Cx3cr1 1L, 4L, 0L
+
+
+#6L = 2S Cenpa in 2,6L but mostly 6L
+#2L = 3S confirmed
+
+#3L = 4S Spp1 2L,3L confirmed
+#5L =2S?
+
+#7L = 9S Ifi27l2a 9L, 7L,8L confirmed
+
+#9L = 6S Ccr1 9L,Ms4a6c 9L, confirmed
+
+#0,1,4L = 7S confirmed Tmem119, Cx3cr1
+#8L = 8S Ccl4 7L,8L confirmed
+
+#10L
+stevensclusters = as.factor(stevenssub2$seurat_clusters)
+levels(stevensclusters) = c("7","7","3","4","7","5L","2","9","8","6","10L")
+stevenssub2$stevensclusters = stevensclusters
+```
+
+```{r}
+setwd("~/Desktop")
+Idents(stevenssub2) = "stevensclusters"
+stevenssub2 = BuildClusterTree(stevenssub2,features = var.genes)
+tree = stevenssub2@tools$BuildClusterTree
+setEPS()
+postscript("tree_allstevenssub2Feb2020_stevensclusters.eps")
+plot.phylo(tree, use.edge.length = T, direction = "rightwards")
+dev.off()
+```
+
+```{r}
+markers_all <- FindAllMarkers(
+    object = stevenssub2, 
+    only.pos = F, 
+    min.pct = 0.1, #gene must be present in 10% of the cells in the cluster
+    logfc.threshold = 0,
+    test.use = "MAST",
+    features = var.genes
+)
+
+dim(markers_all)
+head(markers_all)
+write.csv(markers_all,file = "~/Desktop/stevenssub2_markers_stevensclusters.csv")
+#markers_all = read.csv("~/Desktop/stevensall_markers_mgcompressed.csv",stringsAsFactors = F,row.names = 1)
+markers_all_single <- markers_all[markers_all$gene %in% names(table(markers_all$gene))[table(markers_all$gene) == 1],] #markers that define a single cluster
+
+dim(markers_all_single)
+table(table(markers_all_single$gene))
+
+table(markers_all_single$cluster)
+
+head(markers_all_single)
+library(dplyr)
+markers_all_single = markers_all_single[markers_all_single$p_val_adj<10^-3,]
+
+topgenes <- markers_all_single %>% group_by(cluster) %>% top_n(10, avg_logFC)
+write.csv(markers_all_single,file = "~/Desktop/markers_single_stevensclusters.csv")
+```
+
+#Repeat ICA analysis on mgAVM02 + Stevens
+```{r}
+#load("/Users/whippoorwill/Desktop/plots/mgAVM02.RData")
+var.genesL = VariableFeatures(mgAVM02)
+var.genesS = var.genes
+var.genesboth = var.genesL[var.genesL %in% var.genesS]
+var.genesboth = c(var.genesboth,'Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1', 'Hexb')
+
+cells = mgAVM02_Stevens2$orig.ident
+cP5 = cells[cells == "LD5LD"]
+cP5 = sample(names(cP5),1000,replace = F)
+cP7 = cells[cells == "LD5RC"]
+cP7 = sample(names(cP7),1000,replace = F)
+dP5 = cells[cells == "LD7RC"]
+dP5 = sample(names(dP5),1000,replace = F)
+dP7 = cells[cells == "LD7LD"]
+dP7 = sample(names(dP7),1000,replace = F)
+S = cells[cells == "Stevens"]
+S = sample(names(S),2000)
+cells = c(cP5, cP7, dP5, dP7,S)
+
+mgAVM02_Stevens2 = subset(mgAVM02_Stevens2,cells = cells)
+
+
+mgAVM02_Stevens <- merge(mgAVM02sub, y = stevenssub2, add.cell.ids = c("LD", "BS"), project = "LD_S", merge.data = F)
+
+save(mgAVM02_Stevens,file = "~/Desktop/mgAVM02_Stevens_raw.Rdata")
+```
+
+```{r}
+library(Seurat)
+library(fastICA)
+library(ggplot2)
+library(ape)
+library(dplyr)
+```
+
+```{r}
+mgAVM02_Stevens<-FindVariableFeatures(mgAVM02_Stevens2, selection.method = "vst", nfeatures = 6000)
+top10 <- head(VariableFeatures(mgAVM02_Stevens),10)
+plot1 <- VariableFeaturePlot(mgAVM02_Stevens)
+plot2 <- LabelPoints(plot=plot1, points = top10, repel = T, xnudge = 0, ynudge = 0)
+plot2
+```
+
+VlnPlot(stevens,c("Hmbs","Fcrls"))
+```{r}
+all.genes<-rownames(mgAVM02_Stevens)
+
+
+counts = GetAssayData(mgAVM02_Stevens,slot = "counts")
+cells_BS = names(mgAVM02_Stevens$ID[mgAVM02_Stevens$ID == "BS"])
+cells_LD = names(mgAVM02_Stevens$ID[mgAVM02_Stevens$ID == "LD"])
+counts_LD = counts[,colnames(counts) %in% cells_LD]
+counts_BS= counts[,colnames(counts) %in% cells_BS]
+median(Matrix::colSums(counts_LD))
+median(Matrix::colSums(counts_BS))
+#ratio = 7
+#divide counts matrix for LD by 7
+counts_LD = counts_LD/7
+countsnew = cbind(counts_LD,counts_BS)
+mgAVM02_Stevens = SetAssayData(mgAVM02_Stevens,slot = "counts",new.data = countsnew)
+
+```
+
+```{r}
+mgAVM02_Stevens <- NormalizeData(mgAVM02_Stevens,normalization.method = "LogNormalize", scale.factor = 10000)
+mgAVM02_Stevens<-FindVariableFeatures(mgAVM02_Stevens, selection.method = "vst", nfeatures = 6000)
+top10 <- head(VariableFeatures(mgAVM02_Stevens),10)
+plot1 <- VariableFeaturePlot(mgAVM02_Stevens)
+plot2 <- LabelPoints(plot=plot1, points = top10, repel = T, xnudge = 0, ynudge = 0)
+plot2
+var.genes = c(VariableFeatures(mgAVM02_Stevens),'Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1', 'Hexb')
+mgAVM02_Stevens<-ScaleData(mgAVM02_Stevens,features = var.genes)
+```
+
+```{r}
+VlnPlot(mgAVM02_Stevens,"Fcrls",group.by = "ID",slot = "counts")
+VlnPlot(mgAVM02_Stevens,"Fcrls",group.by = "ID",slot = "data")
+VlnPlot(mgAVM02_Stevens,"Fcrls",group.by = "ID",slot = "scale.data")
+```
+
+```{r}
+save(mgAVM02_Stevens,file = "~/Desktop/mgAVM02_Stevens_6000_scaled.RData")
+```
+
+Scale both together with combined variable genes
+```{r}
+datamatrix = GetAssayData(mgAVM02_Stevens,slot = "scale.data")
+ICA1 = fastICA(datamatrix, n.comp = 40, 
+        alg.typ = c("parallel","deflation"),
+        fun = c("logcosh","exp"), alpha = 1.0, method = c("R","C"),
+        row.norm = FALSE, maxit = 200, tol = 1e-04, verbose = FALSE,
+        w.init = NULL)
+```
+
+```{r}
+par(mfrow = c(1, 3))
+plot(ICA1$X, main = "Pre-processed data")
+plot(ICA1$X %*% ICA1$K, main = "PCA components")
+plot(ICA1$S, main = "ICA components")
+
+#Sort each ICA by top 10 genes: 
+list = {}
+for (i in 1:40){
+  genevals = ICA1$S[,i]
+  sortgenes = genevals[order(genevals,decreasing = T)]
+  top10 = names(sortgenes[1:10])
+  list[[i]] = top10
+}
+```
+
+```{r}
+#retrieve cell embeddings 
+ica = ICA1$K
+feat = ICA1$S
+rownames(ica) = colnames(ICA1$X)
+#we first label the columns to ensure downstream consistency
+colnames(ica) <- paste0("ICA_", 1:40)
+colnames(feat) <- paste0("ICA_", 1:40)
+# We will now store this as a custom dimensional reduction called 'ica'
+mgAVM02_Stevens[["ica"]] <- CreateDimReducObject(embeddings = ica, loadings = feat, key = "ICA_", assay = DefaultAssay(mgAVM02_Stevens))
+
+mgAVM02_Stevens <- ProjectDim(mgAVM02_Stevens, reduction = "ica",dims.print = 1:20)
+# We can now use this as you would any other dimensional reduction in all downstream functions
+
+```
+```{r}
+DimPlot(mgAVM02_Stevens, reduction = "ica", pt.size = 0.5,group.by = "orig.ident",dims = c(dim,dim+1))
+dim = dim+2
+
+#remove 1,3,4,6,15,16,19,22,24
+```
+
+```{r}
+#remove 1,3,4,6,15,16,19,22,24
+dim = c(2,5,7:14,17:18)
+mgAVM02_Stevens<-RunUMAP(mgAVM02_Stevens,reduction = "ica",dims = dim, verbose = F)
+mgAVM02_Stevens<-FindNeighbors(mgAVM02_Stevens,reduction = "ica", dims=dim,verbose=F)
+set.seed(1)
+mgAVM02_Stevens<-FindClusters(mgAVM02_Stevens,verbose=F,resolution = 0.5)
+```
+
+
+```{r}
+DimPlot(mgAVM02_Stevens, group.by = "seurat_clusters",label = T)
+DimPlot(mgAVM02_Stevens, group.by = "finalclusters",label = T)
+DimPlot(mgAVM02_Stevens, group.by = "stevensclusters",label = T)
+DimPlot(mgAVM02_Stevens, group.by = "mouse",label = T)
+DimPlot(mgAVM02_Stevens, group.by = "age")
+FeaturePlot(mgAVM02_Stevens, "Fcrls")
+#FeaturePlot(mgAVM02_Stevens, "Ccr2")
+#FeaturePlot(mgAVM02_Stevens, "Rrm2")
+FeaturePlot(mgAVM02_Stevens, c("Spp1","P2ry12","Ifit2","Ctsl","Cenpa"),split.by = "ID",ncol = 2)
+```
+
+
+```{r}
+setwd("~/Desktop")
+Idents(mgAVM02_Stevens) = "seurat_clusters"
+mgAVM02_Stevens = BuildClusterTree(mgAVM02_Stevens,features = var.genes)
+tree = mgAVM02_Stevens@tools$BuildClusterTree
+setEPS()
+postscript("tree_allmgAVM02_StevensFeb2020_finalclustersscaled.eps")
+plot.phylo(tree, use.edge.length = T, direction = "rightwards")
+dev.off()
+```
+
+```{r}
+Idents(mgAVM02_Stevens) = "seurat_clusters"
+markers_all <- FindAllMarkers(
+    object = mgAVM02_Stevens, 
+    only.pos = F, 
+    min.pct = 0.1, #gene must be present in 10% of the cells in the cluster
+    logfc.threshold = 0,
+    features = var.genes
+)
+
+dim(markers_all)
+head(markers_all)
+write.csv(markers_all,file = "~/Desktop/mgAVM02_Stevens_markers_newclustersvargenes.csv")
+#markers_all = read.csv("~/Desktop/stevensall_markers_mgcompressed.csv",stringsAsFactors = F,row.names = 1)
+markers_all_single <- markers_all[markers_all$gene %in% names(table(markers_all$gene))[table(markers_all$gene) == 1],] #markers that define a single cluster
+
+dim(markers_all_single)
+table(table(markers_all_single$gene))
+
+table(markers_all_single$cluster)
+
+head(markers_all_single)
+library(dplyr)
+markers_all_single = markers_all_single[markers_all_single$p_val_adj<10^-3,]
+
+topgenes <- markers_all_single %>% group_by(cluster) %>% top_n(10, avg_logFC)
+write.csv(markers_all_single,file = "~/Desktop/markers_single_newclusters_bothvargenes.csv")
+```
+
+```{r}
+setEPS()
+postscript("~/Desktop/LD_S_byagevargenes.eps")
+DimPlot(mgAVM02_Stevens,group.by = "finalclusters",split.by = "age")
+dev.off()
+```
+
+```{r}
+setEPS()
+postscript("~/Desktop/LD_S_age_Lonlyvargenes.eps")
+DimPlot(mgAVM02_Stevens,group.by = "age",cells = colnames(mgAVM02_Stevens)[mgAVM02_Stevens$ID == "LD"])
+dev.off()
+
+setEPS()
+postscript("~/Desktop/LD_S_age_Sonlyvargenes.eps")
+DimPlot(mgAVM02_Stevens,group.by = "age", cells = colnames(mgAVM02_Stevens)[mgAVM02_Stevens$ID == "BS"])
+dev.off()
+
+setEPS()
+postscript("~/Desktop/LD_S_clustervargenes.eps")
+DimPlot(mgAVM02_Stevens,group.by = "finalclusters",label = T)
+dev.off()
+```
+
+```{r}
+mgAVM02_Stevens$cell = rownames(mgAVM02_Stevens@meta.data)
+cells = mgAVM02_Stevens@meta.data
+cells1012 = cells[cells$seurat_clusters %in% c(10:12),]
+cellsrest = cells[cells$seurat_clusters %in% c(0:9),]
+cellsrest = cellsrest %>% group_by(seurat_clusters) %>% sample_n(100)
+cells = c(cellsrest$cell,cells1012$cell)
+
+markers_all = markers_all[markers_all$p_val_adj<10^-3,]
+topgenes <- markers_all %>% group_by(cluster) %>% top_n(10, avg_logFC)
+setEPS()
+postscript("~/Desktop/heatmap_bothclusters_lfcvargenes10_notsingle.eps")
+DoHeatmap(
+    object = mgAVM02_Stevens, 
+    features = topgenes$gene,
+    group.by = 'seurat_clusters',
+    size = 5,
+    label = T,
+    draw.lines = T,
+    cells = cells
+)
+
+dev.off()
+```
+
+
+#mgAVM02 ICA 
+
+```{r}
+all.genes<-rownames(mgAVM02)
+var.genes = c(VariableFeatures(mgAVM02),'Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1', 'Hexb')
+var.genes = var.genes[!var.genes %in% c("Xist","Tsix","Eif2s3y","Ddx3y","Uty")]
+mgAVM02 = NormalizeData(mgAVM02,normalization.method = "LogNormalize",scale.factor = 10000)
+mgAVM02<-ScaleData(mgAVM02,features = var.genes)
+```
+Scale both together with combined variable genes
+```{r}
+mgAVM02$cellnames = colnames(mgAVM02)
+cells = mgAVM02@meta.data %>% group_by(sample_description) %>% sample_n(2000)
+cells = cells$cellnames
+mgAVM02 = subset(mgAVM02, cells = cells)
+#library(fastICA)
+datamatrix = GetAssayData(mgAVM02,slot = "scale.data")
+ICA1 = fastICA(datamatrix, n.comp = 40, alg.typ = c("parallel","deflation"),
+        fun = c("logcosh","exp"), alpha = 1.0, method = c("R","C"),
+        row.norm = FALSE, maxit = 200, tol = 1e-04, verbose = FALSE,
+        w.init = NULL)
+
+```
+
+```{r}
+par(mfrow = c(1, 3))
+plot(ICA1$X, main = "Pre-processed data")
+plot(ICA1$X %*% ICA1$K, main = "PCA components")
+plot(ICA1$S, main = "ICA components")
+
+#Sort each ICA by top 10 genes: 
+list = {}
+for (i in 1:40){
+  genevals = ICA1$S[,i]
+  sortgenes = genevals[order(genevals,decreasing = T)]
+  top10 = names(sortgenes[1:10])
+  list[[i]] = top10
+}
+```
+
+```{r}
+#retrieve cell embeddings 
+ica = ICA1$K
+feat = ICA1$S
+rownames(ica) = colnames(ICA1$X)
+#we first label the columns to ensure downstream consistency
+colnames(ica) <- paste0("ICA_", 1:40)
+colnames(feat) <- paste0("ICA_", 1:40)
+# We will now store this as a custom dimensional reduction called 'ica'
+mgAVM02[["ica"]] <- CreateDimReducObject(embeddings = ica, loadings = feat, key = "ICA_", assay = DefaultAssay(mgAVM02))
+
+mgAVM02 <- ProjectDim(mgAVM02, reduction = "ica",dims.print = 1:20)
+# We can now use this as you would any other dimensional reduction in all downstream functions
+#remove 8, 7, 11
+```
+
+
+```{r}
+DimPlot(mgAVM02, reduction = "ica", pt.size = 0.5,group.by = "mouse",dims = c(dim,dim+1))
+dim = dim+1
+```
+
+```{r}
+dim = c(1:7,9:20)
+mgAVM02<-RunUMAP(mgAVM02,reduction = "ica",dims = dim, verbose = F)
+mgAVM02<-FindNeighbors(mgAVM02,reduction = "ica", dims=dim,verbose=F)
+set.seed(1)
+mgAVM02<-FindClusters(mgAVM02,verbose=F,resolution = 0.5)
+```
+
+
+```{r}
+DimPlot(mgAVM02, group.by = "seurat_clusters",split.by = "finalclusters",label = T)
+DimPlot(mgAVM02, group.by = "finalclusters",label = T)
+DimPlot(mgAVM02, group.by = "age")
+FeaturePlot(mgAVM02, "Fcrls")
+#FeaturePlot(mgAVM02, "Ccr2")
+#FeaturePlot(mgAVM02, "Rrm2")
+FeaturePlot(mgAVM02, c("Spp1","H2-Aa","Ube2c","Fabp5"))
+```
+
+```{r}
+setwd("~/Desktop")
+Idents(mgAVM02) = "seurat_clusters"
+mgAVM02 = BuildClusterTree(mgAVM02,features = var.genes)
+tree = mgAVM02@tools$BuildClusterTree
+setEPS()
+postscript("tree_allmgAVM02Feb2020_icaclusters.eps")
+plot.phylo(tree, use.edge.length = T, direction = "rightwards")
+dev.off()
+```
+
+
+```{r}
+markers_all <- FindAllMarkers(
+    object = mgAVM02, 
+    only.pos = F, 
+    min.pct = 0.1, #gene must be present in 10% of the cells in the cluster
+    logfc.threshold = 0,
+    test.use = "MAST",
+    features = var.genes
+)
+
+dim(markers_all)
+head(markers_all)
+write.csv(markers_all,file = "~/Desktop/mgAVM02_markers_icaclusters.csv")
+#markers_all = read.csv("~/Desktop/stevensall_markers_mgcompressed.csv",stringsAsFactors = F,row.names = 1)
+markers_all_single <- markers_all[markers_all$gene %in% names(table(markers_all$gene))[table(markers_all$gene) == 1],] #markers that define a single cluster
+
+dim(markers_all_single)
+table(table(markers_all_single$gene))
+
+table(markers_all_single$cluster)
+
+head(markers_all_single)
+library(dplyr)
+markers_all_single = markers_all_single[markers_all_single$p_val_adj<10^-3,]
+
+topgenes <- markers_all_single %>% group_by(cluster) %>% top_n(10, avg_logFC)
+write.csv(markers_all_single,file = "~/Desktop/markers_single_icaclusters.csv")
+```
+
+```{r}
+mgAVM02$cell = rownames(mgAVM02@meta.data)
+cells = mgAVM02@meta.data
+cells1012 = cells[cells$seurat_clusters %in% c(8,9),]
+cellsrest = cells[cells$seurat_clusters %in% c(0:7),]
+cellsrest = cellsrest %>% group_by(seurat_clusters) %>% sample_n(100)
+cells = c(cellsrest$cell,cells1012$cell)
+
+markers_all_single = markers_all_single[markers_all_single$p_val_adj<10^-3,]
+topgenes <- markers_all_single %>% group_by(cluster) %>% top_n(10, avg_logFC)
+setEPS()
+postscript("~/Desktop/heatmap_icaclusters_lfcvargenes10.eps")
+DoHeatmap(
+    object = mgAVM02, 
+    features = topgenes$gene,
+    group.by = 'seurat_clusters',
+    size = 5,
+    label = T,
+    draw.lines = T,
+    cells = cells
+)
+
+dev.off()
+```
+
+
+```{r}
+setEPS()
+postscript("~/Desktop/stevens/UMAP/both_mgAVM02clusters.eps")
+DimPlot(mgAVM02_Stevens,group.by = "finalclusters",label = T)
+dev.off()
+
+setEPS()
+postscript("~/Desktop/stevens/UMAP/both_stevensclusters.eps")
+DimPlot(mgAVM02_Stevens,group.by = "stevensclusters",label = T)
+dev.off()
+
+setEPS()
+postscript("~/Desktop/stevens/UMAP/both_finalclusters.eps")
+DimPlot(mgAVM02_Stevens,group.by = "seurat_clusters",label = T)
+dev.off()
+
+setEPS()
+postscript("~/Desktop/stevens/UMAP/both_finalclusters_sep.eps")
+DimPlot(mgAVM02_Stevens,group.by = "seurat_clusters",split.by = "ID",label = T)
+dev.off()
+```
+
+
+```{r}
+Idents(mgAVM02_Stevens) = "seurat_clusters"
+
+var.genes = c(VariableFeatures(mgAVM02_Stevens),'Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1', 'Hexb')
+var.genes = var.genes[!var.genes %in% c("Xist","Tsix","Eif2s3y","Ddx3y","Uty")]
+mgAVM02_Stevens = BuildClusterTree(mgAVM02_Stevens, features = var.genes)
+tree = mgAVM02_Stevens@tools$BuildClusterTree
+setEPS()
+postscript("~/Desktop/stevens/Trees/tree_allmgAVM02_Stevens_allclusters.eps")
+plot.phylo(tree, use.edge.length = T, direction = "rightwards")
+dev.off()
+```
+
+
+```{r}
+setwd("~/Desktop")
+
+# load library
+library('variancePartition')
+# load simulated data:
+# geneExpr: matrix of gene expression values
+# info: information/metadata about each sample
+#data(varPartData)
+# Specify variables to consider
+# Age is continuous so model it as a fixed effect
+# Individual and Tissue are both categorical,
+# so model them as random effects
+# Note the syntax used to specify random effects
+
+geneCounts = GetAssayData(mgAVM02,slot = "counts")
+geneExpr = GetAssayData(mgAVM02,slot = "data")
+var.genes = VariableFeatures(mgAVM02)
+
+geneExpr = as.matrix(geneExpr[rownames(geneExpr)%in% var.genes,])
+geneExpr = geneExpr[rowSums(geneExpr)>0,]
+geneCounts = as.matrix(geneCounts[rownames(geneCounts)%in% var.genes,])
+geneCounts = geneCounts[rowSums(geneCounts)>0,]
+
+info = mgAVM02@meta.data
+form <- ~ percent.mito + nCount_RNA + (1|sex) + (1|age) + (1|condition)
+# Fit model and extract results
+# 1) fit linear mixed model on gene expression
+# If categorical variables are specified,
+# a linear mixed model is used
+# If all variables are modeled as fixed effects,
+# a linear model is used
+# each entry in results is a regression model fit on a single gene
+# 2) extract variance fractions from each model fit
+
+# for each gene, returns fraction of variation attributable
+# to each variable
+# Interpretation: the variance explained by each variables
+# after correcting for all other variables
+# Note that geneExpr can either be a matrix,
+# and EList output by voom() in the limma package,
+# or an ExpressionSet
+varPart <- fitExtractVarPartModel( geneExpr, form, info )
+# sort variables (i.e. columns) by median fraction
+# of variance explained
+vp <- sortCols( varPart )
+vs = varPart[order(varPart$sex,decreasing = T),]
+# Figure 1a
+# Bar plot of variance fractions for the first 10 genes
+plotPercentBars( vp[1:10,] )
+plotPercentBars( vs[1:20,] )
+#
+# Figure 1b
+# violin plot of contribution of each variable to total variance
+plotVarPart( vp )
+plotVarPart( vs )
+vpstevens = vp
+varPartstevens = varPart
+
+vs = varPartstevens[order(varPartstevens$sex,decreasing = T),]
+setEPS()
+postscript("~/Desktop/mgavm02variancesex.eps")
+plotPercentBars( vs[1:20,] )
+dev.off()
+
+var.genes = VariableFeatures(mgAVM02)[!VariableFeatures(mgAVM02) %in% c("Xist","Eif2s3y","Ddx3y","Uty","Tsix","Gm47283","AC149090.1")]
+```
+Re-scale and normalize mgAVM02
+```{r}
+mgAVM02<-FindVariableFeatures(mgAVM02, selection.method = "vst", nfeatures = 6000)
+top10 <- head(VariableFeatures(mgAVM02),10)
+plot1 <- VariableFeaturePlot(mgAVM02)
+plot2 <- LabelPoints(plot=plot1, points = top10, repel = T, xnudge = 0, ynudge = 0)
+plot2
+
+VlnPlot(mgAVM02,c("Hmbs","Hbb-bs"))
+```
+
+Scale the data
+```{r}
+mgAVM02 = NormalizeData(mgAVM02,normalization.method = LogNormalize,scale.factor = 10000)
+mgAVM02<-ScaleData(mgAVM02,features = var.genes, vars.to.regress = c("percent.mito","nCount_RNA"))
+```
+
+
+
+
