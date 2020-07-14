@@ -1,5 +1,5 @@
 ---
-title: "Stevens analysis"
+title: "ICA"
 output: html_document
 ---
 
