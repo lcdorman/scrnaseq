@@ -15,6 +15,8 @@ When you click the **Knit** button a document will be generated that includes bo
 
 First initialize biocManager and Seurat, and walk into your directory. If you have not yet installed Seurat and ggplot2, you will need to un-hash out the biocManager commands below. 
 
+This is a line from RStudio
+
 ```{r}
 #Basic R commands: 
 list.files(dir)
