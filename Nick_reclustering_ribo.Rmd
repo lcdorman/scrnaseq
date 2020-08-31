@@ -1,0 +1,91 @@
+---
+title: "Nick_2020_JuvMicro_RegressRPS"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(Seurat)
+library(dplyr)
+library(ape)
+
+```
+
+```{r}
+load("/Users/whippoorwill/Desktop/Sequencing/Nick/2_2020/NickData/Data/juvenile_microglia_new.RData")
+```
+
+Option A: standard
+
+
+
+Scale the data
+```{r}
+all.genes<-rownames(sobject)
+var.genes = VariableFeatures(sobject)
+add.genes = c('fcrls', 'olfml3', 'lgmn', 'cx3cr1', 'hexb','apoeb')
+add.genes = add.genes[!add.genes %in% var.genes]
+any(add.genes %in% var.genes)
+scalegenes = c(var.genes,add.genes)
+
+sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = c("nFeature_RNA","percent.ribo"))
+```
+
+Dimensionality reduction. Note that UMAP can be run directly on most variable features as well, but this will take forever unless you severely restrict #genes. 
+```{r}
+sobject <- RunPCA(sobject,features = scalegenes,npcs = 50, verbose = FALSE)
+set.seed(1)
+#figure out how many PCs to use - can default to 30
+ElbowPlot(sobject,ndims = 50, reduction = "pca")
+print(sobject[["pca"]], dims = 1:20, nfeatures = 5)
+#look for heat shock proteins or Malat1
+FeaturePlot(sobject,"percent.mito",reduction = "pca",dims = 1:2 )
+```
+
+
+```{r}
+set.seed(1)
+sobject<-RunUMAP(sobject,reduction = "pca",dims = 1:30, verbose = F)
+sobject<-FindNeighbors(sobject,dims=1:30,verbose=F)
+set.seed(1)
+res = seq(0.5,3,by = 0.5) #set this to anything
+sobject<-FindClusters(sobject,verbose=F,resolution = 0.4) 
+#save(sobject,file = "~/Desktop/Sequencing/Nick/2_2020/NickData/Data/juvenile_microglia_new.RData")
+```
+
+
+```{r}
+DimPlot(sobject,label=F,reduction = "umap")
+genes = c("marco","mpeg1.1","apoeb","p2ry12","bzw2","g0s2","ccl19a.1","cd74a")
+FeaturePlot(sobject,genes[1:4],reduction = "umap")
+FeaturePlot(sobject,genes[5:8], reduction = "umap")
+FeaturePlot(sobject,features = "percent.mito")
+FeaturePlot(sobject,features = "percent.ribo")
+FeaturePlot(sobject,features = "nCount_RNA")
+FeaturePlot(sobject,features = "nFeature_RNA")
+DimPlot(sobject,group.by = "individual")
+DimPlot(sobject,group.by = "cluster_region")
+```
+```{r}
+Idents(sobject) = "cluster_region"
+sobject= BuildClusterTree(sobject,dims = 1:30)
+tree = sobject@tools$BuildClusterTree
+
+plot.phylo(tree, use.edge.length = T, direction = "rightwards")
+
+```
+```{r}
+cluster_region_noribo = c("0_MB","1_HB","2_Proliferating","3_OT","4_HB","5_MB","6_other","7_other")
+x = as.factor(sobject$seurat_clusters)
+levels(x) = cluster_region_noribo
+sobject$cluster_region_noribo = x
+table(sobject$cluster_region_noribo)
+```
+
+```{r}
+save(sobject,file = "~/Desktop/Sequencing/Nick/2_2020/NickData/Data/juvenile_microglia_riboregression.RData")
+```
+
