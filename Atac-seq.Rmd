@@ -1,0 +1,610 @@
+---
+title: "Atac-seq"
+output: html_notebook
+---
+```{r}
+library(Seurat)
+library(dplyr)
+```
+
+
+Load file with genes of interest
+
+```{r}
+genes = read.csv("/Users/whippoorwill/Dropbox (Anna Molofsky Lab)/2020-Leah-barrelCortex/Manuscript data/Glia RNASeq/P5_P7 MG rnaseq/Spreadsheets/AllmarkersCutoffe25lfc0_2.csv",stringsAsFactors = F)
+genes = genes[,4:ncol(genes)]
+head(genes)
+```
+
+Load file with atac-seq peaks
+
+```{r}
+peaks = read.csv("/Users/whippoorwill/Desktop/Atac-seq/MergedpeaksPBSAnnotated_v2.csv",stringsAsFactors = F)
+head(peaks)
+peaks = peaks[,c("Peak.Score","Focus.Ratio.Region.Size","Detailed.Annotation","Gene.Name")]
+head(peaks)
+#Change "Detailed.Annotation" to 3 columns with T/F
+
+annotation = peaks$Detailed.Annotation
+rpt = grep("repeat",annotation)
+names(rpt) = rep("Repeat",length(rpt))
+
+prom = grep("promoter",annotation)
+names(prom) = rep("Promoter",length(prom))
+intergenic = grep("Intergenic",annotation)
+names(intergenic) = rep("Intergenic",length(intergenic))
+cpg = grep("CpG",annotation)
+names(cpg) = rep("CpG",length(cpg))
+utr3 = grep("3' UTR",annotation)
+names(utr3) = rep("UTR3",length(utr3))
+utr5 = grep("5' UTR",annotation)
+names(utr5) = rep("UTR5",length(utr5))
+exon = grep("exon",annotation)
+names(exon) = rep("Exon",length(exon))
+exon = exon[!exon %in% c(utr3,utr5)]
+
+intron = grep("intron",annotation)
+names(intron) = rep("Intron",length(intron))
+
+tts = grep("TTS",annotation)
+names(tts) = rep("TTS",length(tts))
+annotationfull = c(rpt,exon,prom,intergenic,cpg,utr3,utr5,intron,tts)
+annotationfull = annotationfull[order(annotationfull)]
+
+annotation[annotationfull] = names(annotationfull)
+
+peaks$Detailed.Annotation = annotation
+
+#Separate only the genes that are present in my file
+allgenes = genes$Gene
+peaks = peaks[peaks$Gene.Name %in% allgenes,]
+
+#Include only confident peaks (> 1 sample)
+peaks = peaks[grep("\\|",peaks$Focus.Ratio.Region.Size),]
+```
+```{r}
+#select only promoters
+peaks = peaks[peaks$Detailed.Annotation == "Promoter",]
+```
+
+
+```{r}
+k = 4
+for (i in 2:length(peaks$Gene.Name)){
+  if (peaks$Gene.Name[(i-1)] == peaks$Gene.Name[i]){ 
+    peaks[(i-(k/4)),(k+1):(k+4)] = peaks[i,1:4]
+    k = k+4
+  } else {k = 4}
+}
+
+peaks = peaks[!duplicated(peaks$Gene.Name),]
+
+
+```
+
+```{r}
+peaks2 = peaks[match(genes$Gene,peaks$Gene.Name),]
+newspreadsheet =cbind(genes,peaks2)
+write.csv(newspreadsheet,file = "~/Desktop/atacseq_mgavm02_promoters.csv")
+```
+```{r}
+atac = read.csv("~/Desktop/Atac-seq/atacseq_mgavm02_promoters.csv",stringsAsFactors = F)
+```
+
+
+```{r}
+dim(atac)
+atac = atac[!is.na(atac$Peak.Score),]
+dim(atac)
+```
+
+Make a new spreadsheet with only the genes upregulated in cluster 3
+```{r}
+genes3 = genes[genes$cluster == "3",]
+dim(genes3)
+peaks3 = peaks[peaks$Gene.Name %in% genes3$Gene,]
+dim(peaks3)
+head(peaks3)
+```
+Select only promoter sequences
+
+```{r}
+peaks3prom = peaks3[grep("promoter-",peaks3$Detailed.Annotation),]
+dim(peaks3prom)
+head(peaks3prom)
+```
+Select only rows with at least 2 samples enriched
+
+```{r}
+peaks3prompos = peaks3prom[grep("\\|",peaks3prom$Focus.Ratio.Region.Size),]
+dim(peaks3prompos)
+head(peaks3prompos)
+```
+Write a spreadsheet (note: 315 genes in cluster 3, 127 peaks)
+
+```{r}
+write.csv(peaks3prompos,"~/Desktop/Peaks_cluster3.csv")
+```
+
+Compare this to, say, cluster 4: 
+
+Make a new spreadsheet with only the genes upregulated in cluster 4
+```{r}
+genes4 = genes[genes$cluster == "4",]
+dim(genes4)
+peaks4 = peaks[peaks$Gene.Name %in% genes4$Gene,]
+dim(peaks4)
+head(peaks4)
+```
+Select only promoter sequences
+
+```{r}
+peaks4prom = peaks4[grep("promoter-",peaks4$Detailed.Annotation),]
+dim(peaks4prom)
+head(peaks4prom)
+```
+Select only rows with at least 2 samples enriched
+
+```{r}
+peaks4prompos = peaks4prom[grep("\\|",peaks4prom$Focus.Ratio.Region.Size),]
+dim(peaks4prompos)
+head(peaks4prompos)
+```
+Write a spreadsheet (note: 640 genes in cluster 4, 570 peaks)
+
+```{r}
+write.csv(peaks4prompos,"~/Desktop/Peaks_cluster4.csv")
+```
+
+Compare this to, say, cluster 8: 
+
+Make a new spreadsheet with only the genes upregulated in cluster 8
+```{r}
+genes8 = genes[genes$cluster == "8",]
+dim(genes8)
+peaks8 = peaks[peaks$Gene.Name %in% genes8$Gene,]
+dim(peaks8)
+head(peaks8)
+```
+Select only promoter sequences
+
+```{r}
+peaks8prom = peaks8[grep("promoter-",peaks8$Detailed.Annotation),]
+dim(peaks8prom)
+head(peaks8prom)
+```
+Select only rows with at least 2 samples enriched
+
+```{r}
+peaks8prompos = peaks8prom[grep("\\|",peaks8prom$Focus.Ratio.Region.Size),]
+dim(peaks8prompos)
+head(peaks8prompos)
+```
+Write a spreadsheet (note: 92 genes in cluster 8, 73 peaks)
+
+```{r}
+write.csv(peaks8prompos,"~/Desktop/Peaks_cluster8.csv")
+```
+
+Compare with barres dataset: 
+
+```{r}
+barres = read.csv("/Users/whippoorwill/Desktop/Sequencing/LD_RNASeq2018/Diff Exp/Spreadsheets/barreslab_rnaseq.csv",stringsAsFactors = F)
+```
+
+```{r}
+genes3 = peaks3prompos$Gene.Name
+genes3b = barres[barres$Gene.symbol %in% genes3,]
+identical(genes3,genes3b$Gene.symbol)
+```
+```{r}
+for (i in 1:nrow(barres)){
+  row = barres[i,]
+  mspec = row$Microglia/sum(row[c(3:7,9)])*6
+  barres[i,10] = mspec
+}
+
+colnames(barres)[10] = "MicrogliaSpecificity"
+```
+
+```{r}
+barres2 = barres[match(atac$Gene,barres$Gene.symbol),]
+head(atac)
+head(barres2)
+dim(atac)
+dim(barres2)
+atac2 = cbind(barres2,atac)
+```
+
+
+```{r}
+write.csv(atac2,"~/Desktop/Atac-seq/atacseqwithbarres_promoters.csv")
+```
+
+```{r}
+b3 = barres[barres$Gene.symbol %in% genes3,]
+```
+
+Relationship between peak size and microglial specificity by cluster
+
+```{r}
+atac = read.csv("~/Desktop/Sequencing/LD_AVM02/Atac-seq/atacseqwithbarres_promoters.csv",stringsAsFactors = F)
+a = cbind("Gene" = atac$Gene.symbol,"Cluster" = atac$cluster,"Specificity" = atac$MicrogliaSpecificity,"Peak" = atac$Peak.Score,atac$Peak.Score.1,atac$Peak.Score.2,atac$Peak.Score.3)
+head(a)
+for (i in 1:nrow(a)){
+  peak = max(a[i,4:7],na.rm = T)
+  a[i,4] = peak
+}
+head(a)
+a = a[,1:4]
+head(a)
+class(a)
+a = as.data.frame(a)
+head(a)
+head(a$Peak)
+a$Peak = as.character(a$Peak)
+a$Peak = as.numeric(a$Peak)
+
+a$Specificity = as.character(a$Specificity)
+a$Specificity = as.numeric(a$Specificity)
+head(a)
+
+
+library(ggplot2)
+theme_set(
+  theme_bw() +
+    theme(legend.position = "top")
+  )
+
+
+b <- ggplot(a[a$Cluster %in% c(0,3,4,8),], aes(x = log(Specificity), y = Peak))
+setEPS()
+postscript("~/Desktop/atacseq.eps")
+b + geom_point(aes(color = Cluster)) +
+  scale_color_manual(values = c('darkgrey','green','blue','purple'))
+dev.off()
+
+
+b <- ggplot(a[a$Cluster %in% c(0),], aes(x = log(Specificity), y = Peak))
+setEPS()
+postscript("~/Desktop/atacseq.eps")
+b + geom_point(aes(color = Cluster)) +
+  scale_color_manual(values = c('darkgrey','green','blue','purple'))
+dev.off()
+
+
+b <- ggplot(a[a$Cluster %in% c(3),], aes(x = log(Specificity), y = Peak))
+setEPS()
+postscript("~/Desktop/atacseq3.eps")
+b + geom_point(aes(color = Cluster)) +
+  scale_color_manual(values = c('green','blue','purple'))
+dev.off()
+
+b <- ggplot(a[a$Cluster %in% c(4),], aes(x = log(Specificity), y = Peak))
+setEPS()
+postscript("~/Desktop/atacseq4.eps")
+b + geom_point(aes(color = Cluster)) +
+  scale_color_manual(values = c('blue','purple'))
+dev.off()
+
+b <- ggplot(a[a$Cluster %in% c(8),], aes(x = log(Specificity), y = Peak))
+setEPS()
+postscript("~/Desktop/atacseq8.eps")
+b + geom_point(aes(color = Cluster)) +
+  scale_color_manual(values = c('purple'))
+dev.off()
+```
+
+adding in spliced:unspliced ratio
+
+```{r}
+ratio = read.csv("/Users/whippoorwill/Desktop/Jupyter/spliced_unspliced_ratio.csv",stringsAsFactors = F,header = F)
+ratio = as.numeric(ratio)
+genes = read.csv("/Users/whippoorwill/Desktop/Jupyter/colnames.csv",stringsAsFactors = F)
+names(ratio) = genes$Name
+
+```
+
+add ratios to the spreadsheet a
+```{r}
+ratio = ratio[match(a$Gene,names(ratio))]
+a$splicedratio = ratio
+```
+Peak chromatin score vs splicedratio
+
+```{r}
+ac = a[a$Cluster %in% c(0,3,4,8),]
+
+b <- ggplot(ac, aes(x = log(splicedratio), y = Peak))
+
+
+c = b + geom_point(aes(color = Cluster)) +
+  scale_color_manual(values = c('darkgrey','green','blue','purple')) + geom_text( 
+    data=ac %>% filter(log(splicedratio)>6 | log(splicedratio)<(-3) | Peak>120),
+    aes(label=Gene))   
+c
+setEPS()
+postscript("~/Desktop/atacseqpeak_splicedratio.eps")
+c
+dev.off()
+```
+
+Peak chromatin score vs specificity
+
+```{r}
+ac = a[a$Cluster %in% c(3),]
+
+b <- ggplot(ac, aes(y = Peak, x = log(Specificity)))
+
+
+c = b + geom_point(aes(color = Cluster)) +
+  scale_color_manual(values = c('darkgrey','green','blue','purple')) + geom_text( 
+    data=ac %>% filter(log(splicedratio)>6 | log(splicedratio)<(-3) | log(Specificity)>5),
+    aes(label=Gene))   
+c
+setEPS()
+postscript("~/Desktop/specificity_peak.eps")
+c
+dev.off()
+```
+
+
+```{r}
+ac = a[a$Cluster %in% c(0,3,4,8),]
+
+b <- ggplot(ac, aes(x = log(splicedratio), y = log(Specificity)))
+
+
+c = b + geom_point(aes(color = Cluster)) +
+  scale_color_manual(values = c('darkgrey','green','blue','purple')) + geom_text( 
+    data=ac %>% filter(log(splicedratio)>6 | log(splicedratio)<(-3) | log(Specificity)>5),
+    aes(label=Gene))   
+c
+setEPS()
+postscript("~/Desktop/specificity_splicedratio.eps")
+c
+dev.off()
+```
+Volcano Plot: 
+
+
+
+```{r}
+#fc = markers_all
+fc = read.csv("/Users/whippoorwill/Dropbox (Anna Molofsky Lab)/2020-Leah-barrelCortex/Manuscript data/Glia RNASeq/P5_P7 MG rnaseq/Spreadsheets/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F)
+colnames(fc)[8] = "Gene"
+```
+
+```{r}
+newlist = list()
+#Split by cluster
+for (i in c(0:9)){
+  newlist[[i+1]] = fc[fc$cluster == i,]
+}
+cluster = 3
+
+#select a single cluster
+setwd("~/Desktop/plots")
+fc = newlist[[cluster+1]]
+fc = fc[!is.na(fc$avg_logFC),]
+colorkeysdown = fc$Gene[fc$avg_logFC < -log2(1.15) & fc$p_val_adj < 10e-25]
+colorkeysup = fc$Gene[fc$avg_logFC > log2(1.15) & fc$p_val_adj < 10e-25]
+```
+
+Cluster 8: 72 atac+ out of 91
+Cluster 4: 208 out of 226
+cluster 3: 141 out of 314
+cluster 0: 10 of 10 
+
+```{r}
+atac = read.csv("/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/Atac-seq/atacseqwithbarres_promoters.csv",stringsAsFactors = F)
+atac = atac[atac$Peak.Score>5,]
+
+allcolors = rep("darkgrey",length(fc$Gene))
+names(allcolors) = fc$Gene
+a = c("Meg3","Thsd7a","Mast1","Sparcl1","Vcan","Adam11","Gria1","Meg3","Nrxn1","Shank1","Ahi1","Ank2","Nrxn2","Ptprs","Cux2","Sema6c","Gabbr1")
+#a = c("Casp8ap2","Vim","P2ry12","Mrc1","Cd68","Lgals3","Mki67","Itgax","Gpnmb","Lmnb1","Cd9","Tmem119","Ctsl","Igf1","Apoe","Spp1")
+#a = c("Ifit2","Parp12","Axl","Ccl12","Ly6e","Mx1","Isg15","Ifitm3","Lgals9","Irf7","Bst2")
+a = a[a %in% atac$Gene]
+
+allcolors[names(allcolors) %in% colorkeysdown] = "blue"
+allcolors[names(allcolors) %in% colorkeysup]= "yellow"
+allcolors[names(allcolors)%in% atac$Gene] = "red"
+
+
+names(allcolors)[allcolors == "yellow"] = "u"
+names(allcolors)[allcolors == "darkgrey"] = "-"
+names(allcolors)[allcolors == "blue"] = "d"
+names(allcolors)[allcolors == "red"] = "a"
+
+```
+
+Make the plot
+  
+```{r}
+setEPS()
+postscript(paste0("~/Desktop/volcano_atac",cluster,"label2.eps"))
+EnhancedVolcano(fc,
+                lab = fc$Gene,
+                x = 'avg_logFC',
+                y = 'p_val_adj',
+                xlim = c(-2.5, 2.5),
+                title = paste0("LDAVM02_atac",cluster),
+                subtitle = "",
+                drawConnectors = T,
+                legendPosition = 'right',
+                legendVisible = F,
+                pCutoff = 10e-25,
+                FCcutoff = log2(1.15),
+                selectLab = a,
+                transcriptPointSize = 3,
+                transcriptLabSize = 5,
+                col=c('black', 'black', 'black', 'red3'),
+                colCustom = allcolors,
+                gridlines.major = F,
+                gridlines.minor = F,
+                colAlpha = 1)
+
+dev.off()
+
+```
+
+Make a table
+```{r}
+fc = read.csv("/Users/whippoorwill/Dropbox (Anna Molofsky Lab)/2020-Leah-barrelCortex/Manuscript data/Glia RNASeq/P5_P7 MG rnaseq/Spreadsheets/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F)
+colnames(fc)[8] = "Gene"
+
+
+```
+
+Split fc by p-value, log fc
+```{r}
+pval = 10e-25
+lfc = 0.2
+fc = fc[fc$p_val_adj < pval,]
+fcup = fc[fc$avg_logFC > lfc,]
+fcdown = fc[fc$avg_logFC < -lfc,]
+
+table(fcup$cluster)
+table(fcdown$cluster)
+```
+compare to atac-seq data
+```{r}
+atac = read.csv("/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/Atac-seq/atacseqwithbarres_promoters.csv",stringsAsFactors = F)
+atac = atac[!is.na(atac$Gene),]
+atacup = atac[match(fcup$Gene,atac$Gene),c("Gene","Peak.Score")]
+fcup$atac = atacup$Peak.Score
+fcup$truefalse = !is.na(fcup$atac)
+
+atacdown = atac[match(fcdown$Gene,atac$Gene),c("Gene","Peak.Score")]
+fcdown$atac = atacdown$Peak.Score
+fcdown$truefalse = !is.na(fcdown$atac)
+
+"upregulated, p<10e-25,lfc>0.2, true = atacseq >5"
+x = table(fcup$cluster,fcup$truefalse)
+x = cbind(x,"Total" = rowSums(x))
+x = cbind(x,"percent atac>5" = (x[,"TRUE"]/x[,"Total"] * 100))
+up = x
+up
+"downregulated, p<10e-25, lfc < -0.2, true = atacseq > 5"
+x = table(fcdown$cluster,fcdown$truefalse)
+x = cbind(x,"Total" = rowSums(x))
+x = cbind(x,"percent atac>5" = (x[,"TRUE"]/x[,"Total"] * 100))
+x = rbind(x[1:2,],"3" = c(0,0,0,0),x[3:7,])
+down = x
+down
+```
+Tornado chart
+
+```{r}
+
+barplot(up[,4], horiz = T, las=1, xlim = c(-100,100), xaxt='n', ylab = 'cluster',
+        beside=T, col=c('red'))
+barplot(down[,4], horiz = T, las=1, xlim = c(-100,100), xaxt='n', ylab = 'cluster',
+        beside=T, col=c('gold'), add = TRUE)
+axis(1, at=pretty(x),  lab=paste0(pretty(x)," %"), las=TRUE)
+```
+Bar chart
+
+```{r}
+
+setEPS()
+postscript("~/Desktop/barplot_atac_updown.eps")
+barplot(up[,4], horiz = F, las=1, xlim = c(0,10),xlab = "cluster", xaxt='n', ylab = '% atac peak > 5',
+        beside=F, col=c('red'),ylim = c(0,100))
+barplot(down[,4], horiz = F, las=1, xlim = c(0,10), xlab = "cluster", xaxt='n', ylab = '% atac peak > 5',
+        beside=F, col=c('gold'), add = TRUE,ylim = c(0,100))
+
+dev.off()
+
+
+```
+
+cellphonedb
+```{r}
+cellphonedb = read.csv("/Users/whippoorwill/Desktop/Cellphonedb/significant_means.csv",stringsAsFactors = F)
+colnames(cellphonedb)
+```
+count per interaction, remove rows with nothing
+```{r}
+cdb = cellphonedb[,13:28]
+cdb = cdb[rowSums(cdb,na.rm = T)>0,]
+```
+
+Replace NA with 0 and any number with 1 (count incidents)
+
+```{r}
+cdb[!is.na(cdb)] = 1
+cdb[is.na(cdb)] = 0
+
+
+cd = colSums(cdb,na.rm = T)
+cd
+```
+Make a table
+
+```{r}
+class(cd)
+cd = as.data.frame(cd)
+dim(cd)
+cd$three = cd[1:4,1]
+cd$four = cd[5:8,1]
+cd$zero = cd[9:12,1]
+cd$eight = cd[13:16,1]
+```
+Make a table of rows = target (3,4,5,8) and columns = source (3,4,5,8)
+```{r}
+dim(cd)
+cd = cd[1:4,2:5]
+cd
+```
+Rename
+```{r}
+rownames(cd) = c("T3","T4","T0","T8")
+colnames(cd) = c("S3","S4","S0","S8")
+```
+show
+```{r}
+cd = cd[c(3,1,2,4),c(3,1,2,4)]
+cd
+```
+Make a table
+
+```{r}
+heatmap(as.matrix(cd),Rowv = NA,Colv = NA,symm = F,xlab = "Source",ylab = "Target",scale = "none")
+```
+```{r}
+library(pheatmap)
+pheatmap(as.matrix(cd), display_numbers = T,scale = "none",cluster_cols = F,cluster_rows = F )
+cd = as.matrix(cd)
+cd = round(cd,0)
+
+setEPS()
+postscript("~/Desktop/heatmap_cellphonedb_mg.eps")
+pheatmap(cd, display_numbers = T,scale = "none",cluster_cols = F,cluster_rows = F,color = c("lightgrey","lightyellow","gold","orange","darkorange","red","darkred" ))
+dev.off()
+```
+
+
+```{r}
+x = atac$Detailed.Annotation[atac$Detailed.Annotation == "Promoter"]
+length(x)
+```
+
+```{r}
+x1 = atac$Detailed.Annotation.1[atac$Detailed.Annotation.1 == "Promoter"]
+length(x1)
+```
+
+```{r}
+x2 = atac$Detailed.Annotation.2[atac$Detailed.Annotation.2 == "Promoter"]
+length(x2)
+```
+
+
+```{r}
+x3 = atac$Detailed.Annotation.3[atac$Detailed.Annotation.3 == "Promoter"]
+length(x3)
+```
+
+
