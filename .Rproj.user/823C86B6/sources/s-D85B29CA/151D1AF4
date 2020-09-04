@@ -5,16 +5,16 @@
     "dirty" : false,
     "encoding" : "UTF-8",
     "folds" : "",
-    "hash" : "3706640349",
+    "hash" : "2707711350",
     "id" : "151D1AF4",
-    "lastKnownWriteTime" : 1599251491,
-    "last_content_update" : 1599251491197,
+    "lastKnownWriteTime" : 1599252597,
+    "last_content_update" : 1599252597314,
     "path" : "~/Desktop/Code/scrnaseq/Nick_2020_scRNAseq_QC.Rmd",
     "project_path" : "Nick_2020_scRNAseq_QC.Rmd",
     "properties" : {
-        "cursorPosition" : "148,0",
+        "cursorPosition" : "156,0",
         "last_setup_crc32" : "D85B29CAbb338d19",
-        "scrollLine" : "146"
+        "scrollLine" : "149"
     },
     "read_only" : false,
     "read_only_alternatives" : [

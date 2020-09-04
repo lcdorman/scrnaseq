@@ -150,14 +150,34 @@ QC - decide on final filtering parameters, look for clear outliers/differences b
 ```{r}
 title = "nCount"
 title
-do.call("cbind", tapply(sobject$nCount_RNA,sobject$sample_description,quantile,probs=seq(0,1,0.05)))
+hist(sobject$nCount_RNA,freq = F,breaks = 20)
+table = do.call("cbind", tapply(sobject$nCount_RNA,sobject$sample_description,quantile,probs=seq(0,1,0.1)))
+
+
+
+boxplot(table,axes = F, ylab = "", xlab = "")
+
+
+
+
+```
+
+
+```{r}
 title = "nGene"
 title
 do.call("cbind", tapply(sobject$nFeature_RNA,sobject$sample_description,quantile,probs=seq(0,1,0.05)))
+```
+
+
+```{r}
 title = "%mt-RNA"
 title
 round(do.call("cbind", tapply(sobject$percent.mito,sobject$sample_description,quantile,probs=seq(0,1,0.05))), digits = 3)
+```
 
+
+```{r}
 title = "%ribo-RNA"
 title
 round(do.call("cbind", tapply(sobject$percent.ribo,sobject$sample_description,quantile,probs=seq(0,1,0.05))), digits = 3)
