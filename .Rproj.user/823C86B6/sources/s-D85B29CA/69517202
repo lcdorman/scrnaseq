@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1598907274916.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "69517202",
+    "lastKnownWriteTime" : 1598906566,
+    "last_content_update" : 1598906566,
+    "path" : "~/Desktop/Code/scrnaseq/Nick_2020_Adult.Rmd",
+    "project_path" : "Nick_2020_Adult.Rmd",
+    "properties" : {
+        "cursorPosition" : "17,36",
+        "scrollLine" : "0"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}

@@ -1,0 +1,2 @@
+"0","ratio = ratio[match(a$gene,names(ratio))]"
+"0","a$splicedratio = ratio"

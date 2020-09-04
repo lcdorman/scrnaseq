@@ -1,0 +1,1 @@
+"0","atac = read.csv(""atacseq_degenes_promoters.csv"",stringsAsFactors = F)"

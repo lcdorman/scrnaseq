@@ -1,0 +1,7 @@
+"0",""
+"0","#remove genes that don't pass a threshold for p-value and log fold change"
+"0","alpha = 1e-25"
+"0","lfoldchange = 0.2"
+"0",""
+"0","genes = genes[genes$p_val_adj<alpha,]"
+"0","genes = genes[genes$avg_logFC > lfoldchange | genes$avg_logFC < -lfoldchange,]"

@@ -1,0 +1,7 @@
+"0","library(pheatmap)"
+"0",""
+"0","b = as.matrix.data.frame(a,rownames.force = T)"
+"0","colnames(b) = colnames(a)"
+"0","b = apply(b,MARGIN = c(1,2), function(x)as.numeric(x))"
+"0",""
+"0","pheatmap(b, display_numbers = T,scale = ""none"",cluster_cols = F,cluster_rows = F )"

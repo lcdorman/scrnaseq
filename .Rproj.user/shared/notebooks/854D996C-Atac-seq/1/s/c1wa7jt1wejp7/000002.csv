@@ -1,0 +1,3 @@
+"0","peaks = peaks[match(genes$gene,peaks$Gene.Name),]"
+"0","atac =cbind(genes,peaks)"
+"0","write.csv(atac,file = ""atacseq_degenes_promoters.csv"")"

@@ -1,0 +1,7 @@
+"0","atac$cluster = as.factor(atac$cluster)"
+"0","atac = atac[atac$p_val_adj < alpha,]"
+"0","atacup = atac[atac$avg_logFC > log2(foldchange),]"
+"0","atacdown = atac[atac$avg_logFC < -log2(foldchange),]"
+"0",""
+"0","atacup = table(atacup$cluster)"
+"0","atacdown = table(atacdown$cluster)"

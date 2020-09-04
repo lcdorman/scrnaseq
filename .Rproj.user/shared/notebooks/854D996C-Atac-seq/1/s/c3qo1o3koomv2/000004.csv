@@ -1,0 +1,6 @@
+"0","#private"
+"0","barres = read.csv(""barreslab_rnaseq.csv"",stringsAsFactors = F)"
+"0",""
+"0","#public"
+"0","#barres = read.csv(""https://github.com/lcdorman/scrnaseq/blob/master/barreslab_rnaseq.csv"",stringsAsFactors = F)"
+"0",""

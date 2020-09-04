@@ -1,0 +1,22 @@
+"0","EnhancedVolcano(fc,
+                lab = fc$Gene,
+                x = 'avg_logFC',
+                y = 'p_val_adj',
+                xlim = c(-xlim,xlim),
+                title = paste0(""atac"",cluster),
+                subtitle = """",
+                drawConnectors = F,
+                legendPosition = 'right',
+                legendVisible = F,
+                pCutoff = alpha,
+                FCcutoff = log2(foldchange),
+                selectLab = c(colorkeysdown,colorkeysup),
+                transcriptPointSize = 3,
+                transcriptLabSize = 5,
+                col=c('black', 'black', 'black', 'red3'),
+                colCustom = allcolors,
+                gridlines.major = F,
+                gridlines.minor = F,
+                colAlpha = 1)
+"
+"2","One or more P values is 0. Converting to minimum possible value..."

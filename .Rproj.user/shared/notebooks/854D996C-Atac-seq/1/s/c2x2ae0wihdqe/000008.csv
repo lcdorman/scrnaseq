@@ -1,0 +1,4 @@
+"0","#pull out exactly what you want to plot"
+"0","p = t[c(""pctdown"",""pctup""),]"
+"0","c = barplot(p, horiz = F, las=1, xlim = c(0,30),xlab = ""cluster"", ylab = '% promoter atac-seq peaks',"
+"0","        beside=T, col=c('blue','red'),ylim = c(0,100),legend = c(""downregulated"",""upregulated""),axis.lty = 1)"

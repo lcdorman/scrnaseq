@@ -1,0 +1,4 @@
+"0","cd = rbind(""Source"" = names(cd),""Target"" = names(cd),""interactions"" = cd)"
+"0","cd[""Source"",] = sapply(cd[""Source"",],function(x)paste0(""Source_"",strsplit(x,"""")[[1]][2]))"
+"0","cd[""Target"",] = sapply(cd[""Target"",],function(x)strsplit(x,""\\."")[[1]][2]) #split on ""."", take 2nd"
+"0","cd[""Target"",] =sapply(cd[""Target"",],function(x)paste0(""Target_"",strsplit(x,"""")[[1]][2])) #remove ""0"""

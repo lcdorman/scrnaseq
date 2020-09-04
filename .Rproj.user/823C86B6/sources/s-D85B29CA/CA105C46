@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1598907269945.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "393729162",
+    "id" : "CA105C46",
+    "lastKnownWriteTime" : 1598906566,
+    "last_content_update" : 1598906566,
+    "path" : "~/Desktop/Code/scrnaseq/DESeq2 analysis scripts.R",
+    "project_path" : "DESeq2 analysis scripts.R",
+    "properties" : {
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

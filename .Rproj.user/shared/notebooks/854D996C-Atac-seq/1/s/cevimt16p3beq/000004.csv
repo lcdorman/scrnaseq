@@ -1,0 +1,6 @@
+"0","#ratio = read.csv(""https://github.com/lcdorman/scrnaseq/blob/master/spliced_unspliced_ratio.csv"",stringsAsFactors = F,header = F)"
+"0","#genes = read.csv(""https://github.com/lcdorman/scrnaseq/blob/master/splicegenes.csv"",stringsAsFactors = F)"
+"0","ratio = read.csv(""spliced_unspliced_ratio.csv"",stringsAsFactors = F,header = F)"
+"0","ratio = as.numeric(ratio)"
+"0","genes = read.csv(""splicegenes.csv"",stringsAsFactors = F)"
+"0","names(ratio) = genes$Name"

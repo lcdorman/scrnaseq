@@ -1,0 +1,8 @@
+"0","b <- ggplot(ac, aes(x = log(splicedratio), y = log(Specificity)))"
+"0",""
+"0",""
+"0","c = b + geom_point(aes(color = cluster)) +"
+"0","  scale_color_manual(values = c('green','blue','darkgrey','purple')) + geom_text( "
+"0","    data=ac %>% filter(log(splicedratio)>6 | log(splicedratio)<(-3) | log(Specificity)>5),"
+"0","    aes(label=gene),nudge_x = -0.8,check_overlap = T)   "
+"0","c"
