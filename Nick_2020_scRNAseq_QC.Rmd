@@ -169,12 +169,12 @@ anno_vln = function(seurat_object = sobject, metric = "nCount_RNA", group = "sam
 Plot each metric
 ```{r}
 m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
-
+directory = "~/Desktop/QC"
 #Save graphs
 for (i in m){
   graph = anno_vln(metric = i)
   setEPS()
-  postscript(paste0(i,project,".eps"))
+  postscript(file.path(directory,paste0(i,project,".eps")))
   print(graph)
   dev.off()
 }
