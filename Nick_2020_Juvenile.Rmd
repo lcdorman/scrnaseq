@@ -148,8 +148,8 @@ FeaturePlot(sobject,features = "percent.ribo")
 DimPlot(sobject,group.by = "individual")
 
 genes = c("ctsba", "psap", "ctsla", "lygl1","c1qa","cebpb","g0s2","irf2")
-
-for(feature in c(genes,features)){
+genes = c("ccl19a.1", "krt18b", "itgb2","ccl33.2")
+for(feature in c(genes)){
   PrintSeuratGraph(namecard = "Juvenile_mpeg",sobject=sobject,graphtype = "feature",feature = feature)
 }
 

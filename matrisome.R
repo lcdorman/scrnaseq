@@ -1,39 +1,60 @@
-#matrisome
+#Find out how many of your DE genes are part of the matrisome (http://matrisomeproject.mit.edu/)
 
+library(readr)
+library(Seurat)
+library(dplyr)
+
+#You will need to add your own data here (note to Leah - put this on GEO so it can be loaded)
+seurat_path = file.path("~/Desktop/Sequencing/LD_AVM02/Data/Seurat/mgAVM02_may26.RData")
+load(path)
+
+#rename whatever seurat object you have as "sobject"
 sobject = mgAVM02
+
+#set thresholds for DE genes per cluster
 alpha = 1e-25
 foldchange = 0.2
 
-matrisome = read.csv("~/Desktop/matrisome_mm_masterlist.csv",fill = T,stringsAsFactors = F)
+#if public
+#de_path = "https://github.com/lcdorman/scrnaseq/blob/master/allmarkers_vargenesMG_0501.csv"
+#m_file = "https://github.com/lcdorman/scrnaseq/blob/master/matrisome_mm_masterlist.csv"
+
+#if private
+m_file = "matrisome_mm_masterlist.csv"
+de_file = "allmarkers_vargenesMG_0501.csv"
+
+#Read in matrisome file
+matrisome <- read.csv(m_file,stringsAsFactors = F,fill = T)
 matrisome$Category = as.factor(matrisome$Category)
 matrisome$Division = as.factor(matrisome$Division)
 
+#show matrisome summary
 table(matrisome$Division,matrisome$Category)
 
-
-genes = VariableFeatures(sobject)
-de = read.csv("/Users/whippoorwill/Dropbox (Anna Molofsky Lab)/2020-Leah-barrelCortex/Manuscript data/Glia RNASeq/P5_P7 MG rnaseq/Spreadsheets/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F)
-all(de$gene %in% genes)
+#Read in DE genes file
+de = read.csv(de_file,stringsAsFactors = F,fill = T)
 de$cluster = as.factor(de$cluster)
 
-#how many of the variable genes are in the matrisome dataset
-mall = matrisome[matrisome$Gene.Symbol %in% genes,]
-dim(mall)
-table(mall$Division) #123 core, 261 associated
-table(mall$Category) #27 collagen, 82 glycoproteins, 74 regulators, 64 ECM-affiliated
-                      #14 proteoglycans, 123 secreted factors out of 6000
+#Select only the genes that have been used for clustering in sobject
+genes = rownames(GetAssayData(sobject,slot = "scale.data"))
+all(de$gene %in% genes)
+
+#how many of the dataset genes are in the matrisome, and which subset are they
+m_subset = matrisome[matrisome$Gene.Symbol %in% genes,]
+dim(m_subset)
+table(m_subset$Division) 
+table(m_subset$Category) 
 
 #how many differentially expressed genes in each category are actually in this dataset
 #select only the genes that pass a threshold
-
 de = de[de$p_val_adj<alpha,]
 de = de[de$avg_logFC > foldchange | de$avg_logFC < -foldchange,]
 
-#make a separate sheet with all up/down regulated genes
+#make a separate data table with all up/down regulated genes
 deup = de[de$avg_logFC > foldchange,]
 dedown = de[de$avg_logFC < -foldchange,]
 
-#for each cluster, calculate # of ecm genes in up- and down-regulated gene sets
+#for each cluster, calculate # of matrisome genes in up- and down-regulated gene sets
 clusters = levels(de$cluster)
 ecmlist = {}
 for (cluster in clusters){
@@ -48,16 +69,6 @@ for (cluster in clusters){
 str(ecmlist,max.level = 2) 
 table(deup$cluster)
 table(dedown$cluster)
-#cluster 1: 0,18 out of 454, 160 = 0%, 11.25%
-#cluster 2: 0,5 out of 261, 87 = 0%, 1.92%
-#cluster 3: 11,1 out of 315, 6 = 3.49%, 17%
-#cluster 4: 24,3 out of 230, 420 = 10.4%, 0.7%
-#cluster 5(0): 1,3 out of 10, 265 = 10%, 1.13%
-#cluster 6: 0,10 out of 131, 88 = 0%, 11.4%
-#cluster 8: 5, 0 out of 111, 3 = 4.5%, 0%
-#cluster 9: 40, 6 out of 298, 60 = 13.4%, 10%
-
-#allgenes: 384 out of 6000 = 6.4%
 
 #Make a graph showing ecm content for each cluster, up and down
 up = table(deup$cluster)
@@ -81,17 +92,26 @@ t["rdown",] = round(t["ecmdown",]/t["down",]*100,1)
 t = cbind(t,"average" = rowMeans(t,na.rm = T))
 
 #actually make a bargraph of t$rup and t$rdown
+
 #exactly what you want to plot
-p = t[c("rup","rdown"),]
+p = t[c("rdown","rup"),]
+
 setEPS()
-postscript("~/Desktop/barplot_matrisome_updown.eps")
+postscript("barplot_matrisome_updown.eps")
 barplot(p, horiz = F, las=1, xlim = c(0,30),xlab = "cluster", ylab = '% matrisome associated',
-        beside=T, col=c('red','blue'),ylim = c(0,30),legend = c("upregulated","downregulated"),axis.lty = 1)
+        beside=T, col=c('blue','red'),ylim = c(0,30),legend = c("downregulated","upregulated"),axis.lty = 1)
 dev.off()
 
-#print out important gene lists
+#print out important gene lists (or replace "m" with clusterlevels)
 imp = c()
-m = c('3','4','5','8','9')
+
+#To select specific clusters
+clusters = c('3','4','5','8','9')
+
+#To select all clusters
+clusters = levels(de$cluster)
+
+#Make a table that could be printed (from a list)
 for (cluster in clusters){
   lu = ecmlist[[cluster]][["up"]][,1:3]
   ld = ecmlist[[cluster]][["down"]][,1:3]
@@ -106,7 +126,7 @@ for (cluster in clusters){
   imp = rbind(imp,l)
 }
 
-write.csv(imp,file = "~/Desktop/ecmlist.csv")
+write.csv(imp,file = "ecmlist.csv")
 
 
 
