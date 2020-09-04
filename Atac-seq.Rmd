@@ -269,8 +269,8 @@ add ratios to the spreadsheet a
 ratio = ratio[match(a$Gene,names(ratio))]
 a$splicedratio = ratio
 ```
-Peak chromatin score vs splicedratio
 
+Peak chromatin score vs splicedratio
 ```{r}
 ac = a[a$Cluster %in% c(0,3,4,8),]
 
@@ -289,7 +289,6 @@ dev.off()
 ```
 
 Peak chromatin score vs specificity
-
 ```{r}
 ac = a[a$Cluster %in% c(3),]
 
