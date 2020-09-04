@@ -8,37 +8,62 @@ library(dplyr)
 ```
 
 
-Load file with genes of interest
+Load file with differentially expressed genes
 
 ```{r}
-genes = read.csv("/Users/whippoorwill/Dropbox (Anna Molofsky Lab)/2020-Leah-barrelCortex/Manuscript data/Glia RNASeq/P5_P7 MG rnaseq/Spreadsheets/AllmarkersCutoffe25lfc0_2.csv",stringsAsFactors = F)
-genes = genes[,4:ncol(genes)]
+#if public: 
+#genes = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F)
+
+#if private:
+genes = read.csv("allmarkers_vargenesMG_0501.csv",stringsAsFactors = F)
+
+#remove excess columns
+genes = genes[,3:ncol(genes)]
 head(genes)
+
+#remove genes that don't pass a threshold for p-value and log fold change
+alpha = 1e-25
+lfoldchange = 0.2
+
+genes = genes[genes$p_val_adj<alpha,]
+genes = genes[genes$avg_logFC > lfoldchange | genes$avg_logFC < -lfoldchange,]
 ```
 
-Load file with atac-seq peaks
+Load file with atac-seq peaks and edit to merge each gene into one line
 
 ```{r}
-peaks = read.csv("/Users/whippoorwill/Desktop/Atac-seq/MergedpeaksPBSAnnotated_v2.csv",stringsAsFactors = F)
+#if public: 
+#peaks = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/MergedpeaksPBSAnnotated_v2.csv",stringsAsFactors = F)
+
+#if private:
+peaks = read.csv("MergedpeaksPBSAnnotated_v2.csv",stringsAsFactors = F)
 head(peaks)
 peaks = peaks[,c("Peak.Score","Focus.Ratio.Region.Size","Detailed.Annotation","Gene.Name")]
 head(peaks)
-#Change "Detailed.Annotation" to 3 columns with T/F
+```
 
+Change "Detailed.Annotation" to specific meaningful values
+```{r}
 annotation = peaks$Detailed.Annotation
 rpt = grep("repeat",annotation)
 names(rpt) = rep("Repeat",length(rpt))
 
+#pull out different kinds of annotations
 prom = grep("promoter",annotation)
 names(prom) = rep("Promoter",length(prom))
+
 intergenic = grep("Intergenic",annotation)
 names(intergenic) = rep("Intergenic",length(intergenic))
+
 cpg = grep("CpG",annotation)
 names(cpg) = rep("CpG",length(cpg))
+
 utr3 = grep("3' UTR",annotation)
 names(utr3) = rep("UTR3",length(utr3))
+
 utr5 = grep("5' UTR",annotation)
 names(utr5) = rep("UTR5",length(utr5))
+
 exon = grep("exon",annotation)
 names(exon) = rep("Exon",length(exon))
 exon = exon[!exon %in% c(utr3,utr5)]
@@ -48,28 +73,36 @@ names(intron) = rep("Intron",length(intron))
 
 tts = grep("TTS",annotation)
 names(tts) = rep("TTS",length(tts))
+
 annotationfull = c(rpt,exon,prom,intergenic,cpg,utr3,utr5,intron,tts)
 annotationfull = annotationfull[order(annotationfull)]
 
 annotation[annotationfull] = names(annotationfull)
+```
 
+Annotate peaks
+```{r}
 peaks$Detailed.Annotation = annotation
 
 #Separate only the genes that are present in my file
-allgenes = genes$Gene
+allgenes = genes$gene
 peaks = peaks[peaks$Gene.Name %in% allgenes,]
 
 #Include only confident peaks (> 1 sample)
 peaks = peaks[grep("\\|",peaks$Focus.Ratio.Region.Size),]
+head(peaks)
 ```
+
+Select only the genes with promoter peaks (skip or change "Promoter" based on what you are interested in looking at)
 ```{r}
-#select only promoters
 peaks = peaks[peaks$Detailed.Annotation == "Promoter",]
+peaks = peaks[order(peaks$Peak.Score,decreasing = T),]
+head(peaks)
 ```
 
-
+Merge every annotation for the same gene into one line. 
 ```{r}
-k = 4
+k = ncol(peaks)
 for (i in 2:length(peaks$Gene.Name)){
   if (peaks$Gene.Name[(i-1)] == peaks$Gene.Name[i]){ 
     peaks[(i-(k/4)),(k+1):(k+4)] = peaks[i,1:4]
@@ -78,133 +111,92 @@ for (i in 2:length(peaks$Gene.Name)){
 }
 
 peaks = peaks[!duplicated(peaks$Gene.Name),]
-
-
+head(peaks)
 ```
 
+Select only the annotations for genes in your file, and save for future reference
 ```{r}
-peaks2 = peaks[match(genes$Gene,peaks$Gene.Name),]
-newspreadsheet =cbind(genes,peaks2)
-write.csv(newspreadsheet,file = "~/Desktop/atacseq_mgavm02_promoters.csv")
-```
-```{r}
-atac = read.csv("~/Desktop/Atac-seq/atacseq_mgavm02_promoters.csv",stringsAsFactors = F)
+peaks = peaks[match(genes$gene,peaks$Gene.Name),]
+atac =cbind(genes,peaks)
+write.csv(atac,file = "atacseq_degenes_promoters.csv")
 ```
 
-
+(If starting in the middle, load the previously saved file)
 ```{r}
-dim(atac)
-atac = atac[!is.na(atac$Peak.Score),]
-dim(atac)
+atac = read.csv("atacseq_degenes_promoters.csv",stringsAsFactors = F)
 ```
 
-Make a new spreadsheet with only the genes upregulated in cluster 3
+Make a new spreadsheet with only the genes upregulated in a specific cluster
 ```{r}
-genes3 = genes[genes$cluster == "3",]
-dim(genes3)
-peaks3 = peaks[peaks$Gene.Name %in% genes3$Gene,]
-dim(peaks3)
-head(peaks3)
+cluster = "3"
+genes_cluster = genes[genes$cluster == cluster,]
+dim(genes_cluster)
+peaks_cluster = peaks[peaks$Gene.Name %in% genes_cluster$gene,]
+dim(peaks_cluster)
+head(peaks_cluster)
 ```
-Select only promoter sequences
+
+Write a spreadsheet (note: 315 genes in cluster 3, 136 peaks)
 
 ```{r}
-peaks3prom = peaks3[grep("promoter-",peaks3$Detailed.Annotation),]
-dim(peaks3prom)
-head(peaks3prom)
-```
-Select only rows with at least 2 samples enriched
-
-```{r}
-peaks3prompos = peaks3prom[grep("\\|",peaks3prom$Focus.Ratio.Region.Size),]
-dim(peaks3prompos)
-head(peaks3prompos)
-```
-Write a spreadsheet (note: 315 genes in cluster 3, 127 peaks)
-
-```{r}
-write.csv(peaks3prompos,"~/Desktop/Peaks_cluster3.csv")
+write.csv(peaks_cluster,paste0("Peaks_cluster",cluster,".csv"))
 ```
 
 Compare this to, say, cluster 4: 
 
 Make a new spreadsheet with only the genes upregulated in cluster 4
-```{r}
-genes4 = genes[genes$cluster == "4",]
-dim(genes4)
-peaks4 = peaks[peaks$Gene.Name %in% genes4$Gene,]
-dim(peaks4)
-head(peaks4)
-```
-Select only promoter sequences
 
 ```{r}
-peaks4prom = peaks4[grep("promoter-",peaks4$Detailed.Annotation),]
-dim(peaks4prom)
-head(peaks4prom)
+cluster = "4"
+genes_cluster = genes[genes$cluster == cluster,]
+peaks_cluster = peaks[peaks$Gene.Name %in% genes_cluster$gene,]
+write.csv(peaks_cluster,paste0("Peaks_cluster",cluster,".csv"))
 ```
-Select only rows with at least 2 samples enriched
 
-```{r}
-peaks4prompos = peaks4prom[grep("\\|",peaks4prom$Focus.Ratio.Region.Size),]
-dim(peaks4prompos)
-head(peaks4prompos)
-```
-Write a spreadsheet (note: 640 genes in cluster 4, 570 peaks)
-
-```{r}
-write.csv(peaks4prompos,"~/Desktop/Peaks_cluster4.csv")
-```
 
 Compare this to, say, cluster 8: 
 
 Make a new spreadsheet with only the genes upregulated in cluster 8
 ```{r}
-genes8 = genes[genes$cluster == "8",]
-dim(genes8)
-peaks8 = peaks[peaks$Gene.Name %in% genes8$Gene,]
-dim(peaks8)
-head(peaks8)
+cluster = "8"
+genes_cluster = genes[genes$cluster == cluster,]
+peaks_cluster = peaks[peaks$Gene.Name %in% genes_cluster$gene,]
+write.csv(peaks_cluster,paste0("Peaks_cluster",cluster,".csv"))
 ```
-Select only promoter sequences
+
+Compare with barres dataset: (Courtesy of http://brainrnaseq.org)
 
 ```{r}
-peaks8prom = peaks8[grep("promoter-",peaks8$Detailed.Annotation),]
-dim(peaks8prom)
-head(peaks8prom)
+#private
+barres = read.csv("barreslab_rnaseq.csv",stringsAsFactors = F)
+
+#public
+#barres = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/barreslab_rnaseq.csv",stringsAsFactors = F)
+
 ```
-Select only rows with at least 2 samples enriched
+
+Calculate a cell type specificity rating for your cell type of interest (in this case, microglia)
 
 ```{r}
-peaks8prompos = peaks8prom[grep("\\|",peaks8prom$Focus.Ratio.Region.Size),]
-dim(peaks8prompos)
-head(peaks8prompos)
+head(barres)
+colnames(barres)
 ```
-Write a spreadsheet (note: 92 genes in cluster 8, 73 peaks)
+Specify which columns are your cell of interest (coi) and which are other cells (other)
 
 ```{r}
-write.csv(peaks8prompos,"~/Desktop/Peaks_cluster8.csv")
+coi = 8
+other = c(3:(coi-1),(coi+1):9)
 ```
 
-Compare with barres dataset: 
-
-```{r}
-barres = read.csv("/Users/whippoorwill/Desktop/Sequencing/LD_RNASeq2018/Diff Exp/Spreadsheets/barreslab_rnaseq.csv",stringsAsFactors = F)
-```
-
-```{r}
-genes3 = peaks3prompos$Gene.Name
-genes3b = barres[barres$Gene.symbol %in% genes3,]
-identical(genes3,genes3b$Gene.symbol)
-```
+This function will calculate a Cell Type specificity by dividing the fpkm for your cell type by the average fpkm for all other cell types.
 ```{r}
 for (i in 1:nrow(barres)){
   row = barres[i,]
-  mspec = row$Microglia/sum(row[c(3:7,9)])*6
+  mspec = row[coi]/mean(row[other],na.rm = T)
   barres[i,10] = mspec
 }
+colnames(barres)[10] = paste0(colnames(barres)[coi],"_Specificity")
 
-colnames(barres)[10] = "MicrogliaSpecificity"
 ```
 
 ```{r}
@@ -222,7 +214,7 @@ write.csv(atac2,"~/Desktop/Atac-seq/atacseqwithbarres_promoters.csv")
 ```
 
 ```{r}
-b3 = barres[barres$Gene.symbol %in% genes3,]
+b3 = barres[barres$Gene.symbol %in% atac_cluster,]
 ```
 
 Relationship between peak size and microglial specificity by cluster
