@@ -91,11 +91,10 @@ t["rdown",] = round(t["ecmdown",]/t["down",]*100,1)
   
 t = cbind(t,"average" = rowMeans(t,na.rm = T))
 
-#actually make a bargraph of t$rup and t$rdown
-
-#exactly what you want to plot
+#pull out exactly what you want to plot
 p = t[c("rdown","rup"),]
 
+#actually make a bargraph of t$rup and t$rdown
 setEPS()
 postscript("barplot_matrisome_updown.eps")
 barplot(p, horiz = F, las=1, xlim = c(0,30),xlab = "cluster", ylab = '% matrisome associated',
