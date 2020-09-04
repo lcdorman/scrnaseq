@@ -14,3 +14,9 @@
 # RStudio files
 .Rproj.user/
 .Rproj.user
+
+- .Ruserdata
+- .RData
+- .Rhistory
+- .Rproj.user
+
