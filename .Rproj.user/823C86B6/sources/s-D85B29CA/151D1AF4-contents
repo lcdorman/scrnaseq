@@ -47,9 +47,9 @@ For each ID (i.e. folder), read in the data and change the colnames as follows:
 split the colnames that already exist into a list; then remove anything after "-" (split), then extract only the first element ('[[', index = 1L), then paste the ID to each colname (gene) separated by "-". Return d10x. Repeat for each id. 
 
 ```{r}
-d10x.data <- sapply(ids, function(i){
+d10x.data <- sapply(ids, function(id){
         d10x <- Read10X(file.path(dir, id,"filtered_feature_bc_matrix")) #read in each matrix
-        colnames(d10x) <- paste(sapply(strsplit(colnames(d10x),split="-"),'[[',1L),i,sep="-") 
+        colnames(d10x) <- paste(sapply(strsplit(colnames(d10x),split="-"),'[[',1L),id,sep="-") 
         d10x
 })
 
@@ -58,24 +58,26 @@ d10x.data <- sapply(ids, function(i){
 
 The d10x.data object is a list of lists whose columns consist of cell IDs and whose rows represent genes. 
 Make experiment.data into an array with each element of d10x.data (which is a list) as columns (as many columns as cells per sample)
-This creates a new array that contains all of the cells and genes from d10x.data but puts them in one list instead of many. 
+This creates a new array that contains all of the cells and genes from d10x.data but puts them in one array instead of many. 
 
 ```{r}
 experiment.data<-do.call("cbind",d10x.data)
 ```
 
-"aggregate" the data which cellRanger does but not well. Create a seurat object, keeping genes that are in >3 cells, cells with >50 genes (you can always set these to zero and filter later)
+"Aggregate" the data which cellRanger does, but not well. Create a seurat object, keeping genes that are in >3 cells, cells with >50 genes (you can always set these to zero and filter later)
+
+All of the following fields can be altered. I am not filtering by cells or features; the "names.field" and "names.delim" determines the input identity for each cell. 
 
 ```{r}
 project<-"Nick" #Name this anything you want
-#all of the following fields can be altered. I am not filtering by cells or features; the "names.field" and "names.delim" determines the input identity for each cell. Find out what this will be: 
-colnames(experiment.data)[1:5]
+colnames(experiment.data)[1:5] #look at cell name structure
+
 sobject <- CreateSeuratObject(
         experiment.data,
         project = project, 
-        min.cells = 1,
-        min.features = 1,
-        names.field = 2,
+        min.cells = 3, #minimum cells each gene is present in
+        min.features = 50, #minimum genes per cell
+        names.field = 2, #put the "id" from above into meta data
         names.delim = "\\-")
 table(sobject$orig.ident)
 ```
@@ -84,16 +86,13 @@ Calculate mitochondrial content, add as metadata to each cell (column). Percent 
 
 ```{r}
 sobject <- PercentageFeatureSet(sobject, pattern = "^mt-", col.name = "percent.mito")
-```
-
-
-```{r}
 sobject <- PercentageFeatureSet(sobject, pattern = "^rp", col.name = "percent.ribo")
 ```
+
 Extract the sampleIDs which are stored in "orig.ident". The numbers are numbers of cells (columns). Orig.ident is defined by the file from which the data was isolated. 
 
 ```{r}
-samplename = sobject$orig.ident
+samplename = as.factor(sobject$orig.ident)
 table(samplename)
 ```
 
@@ -102,14 +101,18 @@ add sample descriptions to the column (cell) names for each sample. if you call 
 ```{r}
 #check that the names are levels
 levels(samplename)
+
 #rename to whatever you like, in order
 levels(samplename) = c("Juvenile A","Adult A","Adult B","Juvenile B") 
 table(samplename)
+
 #add new metadata column
 sobject$sample_description = samplename
+
 #check
 table(sobject$sample_description,sobject$orig.ident)
 
+#Add in any other metadata
 age = sobject$sample_description
 levels(age) = c("Juvenile","Adult","Adult","Juvenile")
 sobject$age = age
@@ -119,13 +122,30 @@ levels(individual) = c("A","A","B","B")
 sobject$individual = individual
 ```
 
+For mouse/human cells, you can determine from Xist expression which ones are male and which are female. 
+```{r}
+sexgenes = c("g0s2","ptprc") #normally set to Xist and Tsix
+sex = GetAssayData(sobject,slot = "counts")[sexgenes,]
 
+#now you have a 2-row array with a number of counts per cell; split by whether counts are >1 or <1
+female = sex[,sex[1,]>1 & sex[2,] > 1]
+
+#get all the cell names from your seurat object
+cells = colnames(sobject)
+names(cells) = rep("Male",length(cells))
+names(cells)[cells %in% colnames(female)] = "Female"
+
+fm = names(cells)
+table(fm)
+
+#add in a new metadata column
+sobject$sex = fm
+
+#Check with a violin plot
+VlnPlot(sobject,sexgenes,group.by = "sex")
+```
 
 QC - decide on final filtering parameters, look for clear outliers/differences between samples. These are quantiles of cells. Also shows you the variability between cells (and between samples)
-
-5% quantiles for number of genes per cell per sample - nGene is in the metadata for each cell, run quantiles on each sample from 0-1 in increments of 0.05
-
-Show 5% quantiles for mitochondrial genes. Note the large gap between 95%, 100% - maybe filter the top 5% of mt high-expressing cells. But you need to think about what those cells are really doing. Are they dead? Highly active/reactive? 
 
 ```{r}
 title = "nCount"

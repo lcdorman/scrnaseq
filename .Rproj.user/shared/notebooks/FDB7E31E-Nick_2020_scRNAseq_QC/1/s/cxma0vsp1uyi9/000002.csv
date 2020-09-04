@@ -1,8 +1,0 @@
-"0","d10x.data <- sapply(ids, function(i){"
-"0","        d10x <- Read10X(file.path(dataset_loc, i,""filtered_feature_bc_matrix"")) #read in the file for id[i]"
-"0","        colnames(d10x) <- paste(sapply(strsplit(colnames(d10x),split=""-""),'[[',1L),i,sep=""-"") "
-"0","        d10x"
-"0","})"
-"2","Error in Read10X(file.path(dataset_loc, i, ""filtered_feature_bc_matrix"")) : 
-  Directory provided does not exist
-"
