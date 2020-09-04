@@ -147,96 +147,46 @@ VlnPlot(sobject,sexgenes,group.by = "sex")
 
 QC - decide on final filtering parameters, look for clear outliers/differences between samples. These are quantiles of cells. Also shows you the variability between cells (and between samples)
 
+Function to make an annotated violin plot
 ```{r}
-title = "nCount"
-title
-hist(sobject$nCount_RNA,freq = F,breaks = 20)
-table = do.call("cbind", tapply(sobject$nCount_RNA,sobject$sample_description,quantile,probs=seq(0,1,0.1)))
+anno_vln = function(seurat_object = sobject, metric = "nCount_RNA", group = "sample_description"){
+  #specify number of categories
+  n = length(levels(seurat_object@meta.data[,group.by]))
 
+  #make a violin plot
+  a = VlnPlot(seurat_object,metric,group.by = group,pt.size = 0,log = T,cols = rep("grey",n))
 
+  #make a simple function that quantifies percentiles for each column
+  add.percentiles = function(x) {
+    r = quantile(x, probs = seq(0,1,0.2))
+    r
+  }
 
-boxplot(table,axes = F, ylab = "", xlab = "")
+  a + geom_boxplot(width = 0.05,outlier.size = 0,notchwidth = 10,notch = T) + theme_bw() + stat_summary(fun=add.percentiles, geom="point", pch="_", colour=c(rep(c("red3","purple","yellow","forestgreen","darkblue","grey"),n)), size=10)
+}
+```
 
+Plot each metric
+```{r}
+m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
 
+#Save graphs
+for (i in m){
+  graph = anno_vln(metric = i)
+  setEPS()
+  postscript(paste0(i,project,".eps"))
+  print(graph)
+  dev.off()
+}
 
-
+#print graphs
+for (i in m){
+  graph = anno_vln(metric = i)
+  print(graph)
+}
 ```
 
 
-```{r}
-title = "nGene"
-title
-do.call("cbind", tapply(sobject$nFeature_RNA,sobject$sample_description,quantile,probs=seq(0,1,0.05)))
-```
-
-
-```{r}
-title = "%mt-RNA"
-title
-round(do.call("cbind", tapply(sobject$percent.mito,sobject$sample_description,quantile,probs=seq(0,1,0.05))), digits = 3)
-```
-
-
-```{r}
-title = "%ribo-RNA"
-title
-round(do.call("cbind", tapply(sobject$percent.ribo,sobject$sample_description,quantile,probs=seq(0,1,0.05))), digits = 3)
-```
-
-Make graphs that show the distribution of genes, counts, % mt
-```{r}
-VlnPlot(sobject,features = c("nCount_RNA"),group.by = "age",split.by = "individual",pt.size = 0.001)
-VlnPlot(sobject,features = c("percent.mito"),group.by = "age",split.by = "individual",pt.size = 0.001)
-VlnPlot(sobject,features = c("percent.ribo"),group.by = "age",split.by = "individual",pt.size = 0.001)
-VlnPlot(sobject,features = c("nFeature_RNA"),group.by = "age",split.by = "individual",pt.size = 0.001)
-
-VlnPlot(sobject,features = c("nCount_RNA"),group.by = "age",split.by = "individual",pt.size = 0)
-VlnPlot(sobject,features = c("percent.mito"),group.by = "age",split.by = "individual",pt.size = 0)
-VlnPlot(sobject,features = c("percent.ribo"),group.by = "age",split.by = "individual",pt.size = 0)
-VlnPlot(sobject,features = c("nFeature_RNA"),group.by = "age",split.by = "individual",pt.size = 0)
-
-setwd("~/Desktop/Sequencing/Nick/2_2020/NickData/QC")
-setEPS()
-postscript("agedots.eps")
-VlnPlot(sobject,features = c("nCount_RNA"),group.by = "age",split.by = "individual",pt.size = 0.001)
-dev.off()
-
-setEPS()
-postscript("mitodots.eps")
-VlnPlot(sobject,features = c("percent.mito"),group.by = "age",split.by = "individual",pt.size = 0.001)
-dev.off()
-
-setEPS()
-postscript("ribodots.eps")
-VlnPlot(sobject,features = c("percent.ribo"),group.by = "age",split.by = "individual",pt.size = 0.001)
-dev.off()
-
-setEPS()
-postscript("featuredots.eps")
-VlnPlot(sobject,features = c("nFeature_RNA"),group.by = "age",split.by = "individual",pt.size = 0.001)
-dev.off()
-
-
-setEPS()
-postscript("age.eps")
-VlnPlot(sobject,features = c("nCount_RNA"),group.by = "age",split.by = "individual",pt.size = 0)
-dev.off()
-setEPS()
-
-postscript("mito.eps")
-VlnPlot(sobject,features = c("percent.mito"),group.by = "age",split.by = "individual",pt.size = 0)
-dev.off()
-
-setEPS()
-postscript("ribo.eps")
-VlnPlot(sobject,features = c("percent.ribo"),group.by = "age",split.by = "individual",pt.size = 0)
-dev.off()
-
-setEPS()
-postscript("feature.eps")
-VlnPlot(sobject,features = c("nFeature_RNA"),group.by = "age",split.by = "individual",pt.size = 0)
-dev.off()
-```
 Plot the number of cells each gene is represented by - i.e. how many cells express any given gene? Ordered from rare to common genes. So you might consider focusing on genes that are relatively well expressed across the sample, or you might care about genes expressed only in a small subset of cells. The >=2 refers to read number per cell. 
 ```{r}
 plot(sort(Matrix::rowSums(GetAssayData(sobject)>=2)),xlab="gene rank",ylab="number of cells",main="Cells per genes ( >= 2 )")
