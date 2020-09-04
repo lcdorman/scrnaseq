@@ -448,48 +448,42 @@ cdb[is.na(cdb)] = 0
 cd = colSums(cdb,na.rm = T)
 cd
 ```
-Make a table. You'll need to change the numbers if you have more or less than 4 clusters. This actually just repeats the sequence of 4 numbers all the way down. 
-```{r}
-class(cd)
-cd = as.data.frame(cd)
-dim(cd)
-cd$three = cd[1:4,1] #source = three
-cd$four = cd[5:8,1] #source = four
-cd$zero = cd[9:12,1] #source = zero/five
-cd$eight = cd[13:16,1] #source = eight
-dim(cd)
-```
-Make a table of rows = target (3,4,5,8) (specify 4 rows) and columns = source (3,4,5,8) (remove column 1, it's not meaningful)
-```{r}
-cd = cd[1:4,2:5]
-cd
-```
-Rename
-```{r}
-rownames(cd) = c("T3","T4","T0","T8")
-colnames(cd) = c("S3","S4","S0","S8")
-```
-show
-```{r}
-cd = cd[c(3,1,2,4),c(3,1,2,4)]
-cd
-```
-Make a table
+**Make a table(* 
+
+First we will repeat the names for source and target and then rename source and target to the appropriate portions of the name itself. 
 
 ```{r}
-heatmap(as.matrix(cd),Rowv = NA,Colv = NA,symm = F,xlab = "Source",ylab = "Target",scale = "none")
+cd = rbind("Source" = names(cd),"Target" = names(cd),"interactions" = cd)
+cd["Source",] = sapply(cd["Source",],function(x)paste0("Source_",strsplit(x,"")[[1]][2]))
+cd["Target",] = sapply(cd["Target",],function(x)strsplit(x,"\\.")[[1]][2]) #split on ".", take 2nd
+cd["Target",] =sapply(cd["Target",],function(x)paste0("Target_",strsplit(x,"")[[1]][2])) #remove "0"
+```
+
+Make a 3D table first, then iterate through each matrix and add the 3rd dimension (#interactions) to its appropriate position
+
+```{r}
+x = table(cd["Source",],cd["Target",],cd["interactions",])
+dimnames(x)
+dim(x)[3]
+a = x[,,1]
+for (i in 1:dim(x)[3]){
+  t = x[,,i]
+  a[t == 1] = dimnames(x)[[3]][i]
+}
 ```
 
 
 ```{r}
 library(pheatmap)
-pheatmap(as.matrix(cd), display_numbers = T,scale = "none",cluster_cols = F,cluster_rows = F )
-cd = as.matrix(cd)
-cd = round(cd,0)
 
+b = as.matrix.data.frame(a,rownames.force = T)
+colnames(b) = colnames(a)
+b = apply(b,MARGIN = c(1,2), function(x)as.numeric(x))
+
+pheatmap(b, display_numbers = T,scale = "none",cluster_cols = F,cluster_rows = F )
 setEPS()
 postscript("~/Desktop/heatmap_cellphonedb.eps")
-pheatmap(cd, display_numbers = T,scale = "none",cluster_cols = F,cluster_rows = F,color = c("lightgrey","lightyellow","gold","orange","darkorange","red","darkred" ))
+pheatmap(b, display_numbers = T,scale = "none",cluster_cols = F,cluster_rows = F,color = c("lightgrey","lightyellow","gold","orange","darkorange","red","darkred" ))
 dev.off()
 ```
 
