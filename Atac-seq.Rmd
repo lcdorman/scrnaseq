@@ -482,16 +482,13 @@ b = apply(b,MARGIN = c(1,2), function(x)as.numeric(x))
 
 pheatmap(b, display_numbers = T,scale = "none",cluster_cols = F,cluster_rows = F )
 setEPS()
-postscript("~/Desktop/heatmap_cellphonedb.eps")
+postscript("heatmap_cellphonedb.eps")
 pheatmap(b, display_numbers = T,scale = "none",cluster_cols = F,cluster_rows = F,color = c("lightgrey","lightyellow","gold","orange","darkorange","red","darkred" ))
 dev.off()
 ```
 
 
-```{r}
-x = atac$Detailed.Annotation[atac$Detailed.Annotation == "Promoter"]
-length(x)
-```
+
 
 
 
