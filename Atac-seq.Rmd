@@ -168,7 +168,7 @@ Compare with barres dataset: (Courtesy of http://brainrnaseq.org)
 
 ```{r}
 #private
-barres = read.csv("barreslab_rnaseq.csv",stringsAsFactors = F)
+barres = read.csv("barreslab_rnaseq.csv",stringsAsFactors = F,row.names = "Gene.symbol")
 
 #public
 #barres = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/barreslab_rnaseq.csv",stringsAsFactors = F)
@@ -184,20 +184,21 @@ colnames(barres)
 Specify which columns are your cell of interest (coi) and which are other cells (other)
 
 ```{r}
-coi = 8
-other = c(3:(coi-1),(coi+1):9)
+coi = 7
+other = c(2:(coi-1),(coi+1):8)
 ```
 
 This function will calculate a Cell Type specificity by dividing the fpkm for your cell type by the average fpkm for all other cell types.
 ```{r}
 for (i in 1:nrow(barres)){
   row = barres[i,]
-  mspec = row[coi]/mean(row[other],na.rm = T)
-  barres[i,10] = mspec
+  mspec = as.numeric(row[coi])/mean(as.numeric(row[other]),na.rm = T)
+  barres[i,9] = mspec
 }
-colnames(barres)[10] = paste0(colnames(barres)[coi],"_Specificity")
-
+colnames(barres)[9] = paste0(colnames(barres)[coi],"_Specificity")
 ```
+
+
 
 ```{r}
 barres2 = barres[match(atac$Gene,barres$Gene.symbol),]
