@@ -32,6 +32,33 @@ dir= "/Users/whippoorwill/Desktop/Sequencing/Nick/2_2020"
  #set this to whatever you like, above the level of your data folder
 #setwd(dir)
 ```
+Function to print multiple graphs: 
+```{r}
+dir = "~/Desktop/QC"
+PrintSeuratGraph = function(namecard = "a",seurat_object = sobject,graphtype = "feature",feature = NULL,group = NULL,split=NULL,cellnames=NULL){
+  if (!is.null(cellnames)){
+    Idents(seurat_object) = cellnames[1]
+    cells = colnames(seurat_object)[Idents(seurat_object) %in% cellnames[2:length(cellnames)]]} 
+  else {cells = cellnames}
+  if (graphtype == "feature"){
+    graph = FeaturePlot(seurat_object,features = feature,split.by = split, cells = cells,cols = c("lightgrey","lightblue","yellow","orange","darkorange","red"))
+  }
+  if (graphtype == "violin"){
+    graph = VlnPlot(seurat_object,features = feature, pt.size = 0.1, idents = cellnames[2:length(cellnames)],group.by = group, split.by = split)
+  }
+  if (graphtype == "dim"){
+    graph = DimPlot(seurat_object,cells = cells, group.by = group, split.by = split)
+    
+  }
+  name = paste0(feature,"_",graphtype,namecard,".eps")
+  graph
+  setEPS()
+  postscript(file.path(dir,name))
+  print(graph)
+  dev.off()
+}
+
+```
 
 ```{r}
 load(file.path(dir,"NickData/Nick2020_unfiltered.RData"))
@@ -76,6 +103,7 @@ add.genes = c('ptprc','lgmn','hexb','apoeb','mpeg1.1')
 regress = c("nFeature_RNA")
 ```
 
+The following is the standard method of normalization and scaling. Interchangeable with the next chunk. 
 ```{r}
 sobject <- NormalizeData(sobject,normalization.method = "LogNormalize", scale.factor = 10000)
 
@@ -83,15 +111,43 @@ sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = 100
 all.genes<-rownames(sobject)
 var.genes = VariableFeatures(sobject)
 
+labels <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
+plot1 = VariableFeaturePlot(sobject)
+LabelPoints(plot=plot1, points = labels, repel = F, xnudge = 0.1, ynudge = 0.5)
+
 add.genes = add.genes[!add.genes %in% var.genes]
 any(add.genes %in% var.genes)
 scalegenes = c(var.genes,add.genes)
 
 sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = regress)
+```
+
+Alternative: SCTransform (great for smaller datasets)
+```{r}
+add.genes = c("ptprc","lgmn","hexb","mpeg1.1","apoeb")
+regress = c("nFeature_RNA")
+
+sobject <- SCTransform(sobject, vars.to.regress = regress, verbose = FALSE,variable.features.n = 6000,conserve.memory = T)
+
+
+top10 <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
+plot1 = VariableFeaturePlot(sobject)
+LabelPoints(plot=plot1, points = top10, repel = F, xnudge = 0.1, ynudge = 0.5)
+```
+
+Run PCA analysis
+```{r}
 sobject <- RunPCA(sobject,features = scalegenes,npcs = 50, verbose = FALSE)
 
-sobject<-RunUMAP(sobject,reduction = "pca",dims = 1:30, verbose = F)
-sobject<-FindNeighbors(sobject,dims=1:30,verbose=F)
+ElbowPlot(sobject,ndims = 50, reduction = "pca")
+print(sobject[["pca"]], dims = 1:20, nfeatures = 5)
+```
+
+Once you are satisfied with pc's, run clustering: 
+```{r}
+pcs = 1:30
+sobject<-RunUMAP(sobject,reduction = "pca",dims = pcs, verbose = F)
+sobject<-FindNeighbors(sobject,dims=pcs,verbose=F)
 
 res = 0.8 #set this to anything
 sobject<-FindClusters(sobject,verbose=F,resolution = res) 
@@ -175,6 +231,39 @@ plot.phylo(tree, use.edge.length = T, direction = "rightwards")
 dev.off()
 ```
 
+Block to print multiple graphs: 
+```{r}
+name = "all"
+genes = c("marco","mpeg1.1","apoeb","p2ry12","ptprc","hexb","irf8","spi1b","spi1a","csf1ra","csf1rb","slc7a7","c1qa","c1qb","c1qc","cd74a","cd74b","pcna","mki67","siglec15l")
+features = c("percent.mito","percent.ribo","nCount_RNA","nFeature_RNA")
+groups = c("age","sample_description","seurat_clusters","celltype","celltypeclusters")
+genes = genes[genes %in% rownames(GetAssayData(sobject,slot = "data"))]
+
+#just to print to the console some nice graphs
+FeaturePlot(sobject,genes[1:5])
+FeaturePlot(sobject,genes[6:9])
+
+#feature plots
+for(feature in c(genes,features)){
+  PrintSeuratGraph(namecard = name,graphtype = "feature",feature = feature)
+}
+
+#split feature plots by individual
+for(feature in c(features)){
+  PrintSeuratGraph(namecard = paste0(name,"_split"),graphtype = "feature",feature = feature,split = "sample_description")
+}
+
+#dim plots for clustering
+for(group in groups){
+  PrintSeuratGraph(namecard = name,graphtype = "dim",group = group, feature = group)
+}
+
+#violin plots
+for(feature in c(genes,features)){
+  PrintSeuratGraph(namecard = name,graphtype = "violin",feature = feature,group = "seurat_clusters")
+}
+```
+
 
 Subset the data to include only your celltypes of interest: 
 ```{r}
@@ -196,24 +285,32 @@ regress = c("nFeature_RNA")
 sobject <- SCTransform(sobject, vars.to.regress = regress, verbose = FALSE,variable.features.n = 6000,conserve.memory = T)
 
 
-top10 <- c("cd74b","mpeg1.1","cd74a","hexb","apoeb")
+top10 <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
 plot1 = VariableFeaturePlot(sobject)
 LabelPoints(plot=plot1, points = top10, repel = F, xnudge = 0.1, ynudge = 0.5)
 ```
 
-
+Run PCA analysis
 ```{r}
 sobject <- RunPCA(sobject,features = scalegenes,npcs = 50, verbose = FALSE)
 
-sobject<-RunUMAP(sobject,reduction = "pca",dims = 1:30, verbose = F)
-sobject<-FindNeighbors(sobject,dims=1:30,verbose=F)
+ElbowPlot(sobject,ndims = 50, reduction = "pca")
+print(sobject[["pca"]], dims = 1:10, nfeatures = 5)
+```
 
-res = 0.3 #set this to anything
+Once you are satisfied with pc's, run clustering: 
+```{r}
+pcs = 1:30
+sobject<-RunUMAP(sobject,reduction = "pca",dims = pcs, verbose = F)
+sobject<-FindNeighbors(sobject,dims=pcs,verbose=F)
+
+res = 0.8 #set this to anything
 sobject<-FindClusters(sobject,verbose=F,resolution = res) 
+
 save(sobject,file = file.path(dir,paste0(keep,"only_umap.RData")))
 ```
 
-
+Look at resulting clustering to evaluate
 ```{r}
 genes = c("mpeg1.1","apoeb","ptprc","hexb","cd74a","cd74b","bzw2","g0s2","ctsba","lygl1")
 genes[genes %in% VariableFeatures(sobject)]
@@ -238,33 +335,6 @@ plot.phylo(tree, use.edge.length = T, direction = "rightwards")
 
 
 
-Function to print multiple graphs: 
-```{r}
-dir = "~/Desktop/QC"
-PrintSeuratGraph = function(namecard = "a",seurat_object = sobject,graphtype = "feature",feature = NULL,group = NULL,split=NULL,cellnames=NULL){
-  if (!is.null(cellnames)){
-    Idents(seurat_object) = cellnames[1]
-    cells = colnames(seurat_object)[Idents(seurat_object) %in% cellnames[2:length(cellnames)]]} 
-  else {cells = cellnames}
-  if (graphtype == "feature"){
-    graph = FeaturePlot(seurat_object,features = feature,split.by = split, cells = cells,cols = c("lightgrey","lightblue","yellow","orange","darkorange","red"))
-  }
-  if (graphtype == "violin"){
-    graph = VlnPlot(seurat_object,features = feature, pt.size = 0.1, idents = cellnames[2:length(cellnames)],group.by = group, split.by = split)
-  }
-  if (graphtype == "dim"){
-    graph = DimPlot(seurat_object,cells = cells, group.by = group, split.by = split)
-    
-  }
-  name = paste0(feature,"_",graphtype,namecard,".eps")
-  graph
-  setEPS()
-  postscript(file.path(dir,name))
-  print(graph)
-  dev.off()
-}
-
-```
 
 
 Heatmap for clusters within this celltype
@@ -382,6 +452,7 @@ DimPlot(sobject,group.by = "celltypecluster",split.by = "age")
 
 Block to print multiple graphs: 
 ```{r}
+name = "all_mpeg"
 genes = c("marco","mpeg1.1","apoeb","p2ry12","ptprc","hexb","irf8","spi1b","spi1a","csf1ra","csf1rb","slc7a7","c1qa","c1qb","c1qc","cd74a","cd74b","pcna","mki67","siglec15l")
 features = c("percent.mito","percent.ribo","nCount_RNA","nFeature_RNA")
 groups = c("age","sample_description","seurat_clusters","celltype","celltypeclusters")
@@ -393,22 +464,22 @@ FeaturePlot(sobject,genes[6:9])
 
 #feature plots
 for(feature in c(genes,features)){
-  PrintSeuratGraph(namecard = "all_mpeg",graphtype = "feature",feature = feature)
+  PrintSeuratGraph(namecard = name,graphtype = "feature",feature = feature)
 }
 
 #split feature plots by individual
 for(feature in c(features)){
-  PrintSeuratGraph(namecard = "all_mpeg_split",graphtype = "feature",feature = feature,split = "sample_description")
+  PrintSeuratGraph(namecard = paste0(name,"_split"),graphtype = "feature",feature = feature,split = "sample_description")
 }
 
 #dim plots for clustering
 for(group in groups){
-  PrintSeuratGraph(namecard = "all_mpeg",graphtype = "dim",group = group, feature = group)
+  PrintSeuratGraph(namecard = name,graphtype = "dim",group = group, feature = group)
 }
 
 #violin plots
 for(feature in c(genes,features)){
-  PrintSeuratGraph(namecard = "all_mpeg",graphtype = "violin",feature = feature,group = "seurat_clusters")
+  PrintSeuratGraph(namecard = name,graphtype = "violin",feature = feature,group = "seurat_clusters")
 }
 ```
 
@@ -476,3 +547,370 @@ DoHeatmap(
 )
 ```
 
+Other differential expression methods: 
+
+1. Compare each cluster to one "baseline" cluster
+```{r}
+base = '0'                 #default cluster
+column = "seurat_clusters" #can pick any metadata column
+
+Idents(sobject) = column
+clusters = levels(sobject@meta.data[,column]) 
+
+setwd("~/Desktop/plots")
+Idents(sobject) = "seurat_clusters"
+for (cluster in clusters){
+  markers_all <- FindMarkers(
+    object = sobject,
+    ident.1 = cluster,
+    ident.2 = base,
+    only.pos = FALSE, 
+    min.pct = 0.10, #gene must be present in 10% of the cells in the cluster
+    logfc.threshold = 0,
+    test.use = "MAST")
+  dim(markers_all)
+  head(markers_all)
+  write.csv(markers_all,paste0("markers",cluster,"_vs_",base,".csv"))
+}
+```
+
+Or you can run "bulk-seq" like analyses based on your original sample IDs: 
+
+```{r}
+#can pick any metadata column
+column = "seurat_clusters"
+#default cluster
+cluster1 = '0'    
+#cluster of interest
+cluster2 = "2" 
+
+
+Idents(sobject) = column
+markers = FindMarkers(sobject,
+                      ident.1=cluster1,
+                      ident.2 = cluster2,
+                      only.pos=F,
+                      logfc.threshold = 0.0,
+                      min.pct = 0.1,
+                      test.use = "MAST")
+write.csv(markers,file.path(dir,paste0("markers_",cluster1,"_vs_",cluster2,".csv")))
+```
+
+You can make a heatmap only including certain genes/cells: 
+
+```{r}
+#read in a de gene file
+markers = read.csv("singlemarkersMG_0501.csv",stringsAsFactors = F)
+
+#establish cutoffs
+pval = 1e-8 #max p-value for significance
+lfc = 0.2 #minimum log fold change
+minpct = 0.3 #if you want to subset by percent cells in that cluster expressing the gene
+maxpct = 0.7
+single = F #should each gene be a marker of a single cluster only
+ngenes = 3 #how many genes should be in the heatmap per cluster
+ncells = 500 #max # of cells per heatmap column
+column = "finalclusters" #division you care about
+
+markers = markers[markers$p_val_adj<pcut,]
+markers = markers[markers$avg_logFC > lfc,] #pick only positives, or restrict by min/max pct expression using pct1/2
+
+#If you want, select markers that define a single cluster
+if (single){markers <- markers[markers$gene %in% names(table(markers$gene))[table(markers$gene) == 1],] }
+
+table(markers$cluster)
+
+topgenes <- markers %>% group_by(cluster) %>% top_n(ngenes, avg_logFC)
+topgenes = topgenes[order(topgenes$cluster),]
+topgenes$gene
+
+#Subset each cluster to ncells
+cellnames = sobject@meta.data[,column]
+names(cellnames) = colnames(sobject)
+clusters = levels(cellnames)
+newcellnames = NULL
+for (cluster in clusters){
+  n = length(cellnames[cellnames == cluster])
+  if (n > ncells){n = ncells}
+  newcluster = sample(cellnames[cellnames == cluster],n, replace = F)
+  newcellnames = c(newcellnames,newcluster)
+}
+
+#check
+table(newcellnames)
+
+#Make heatmap
+setEPS()
+postscript(file.path(dir,paste0(column,"_",pval,"_ncells",ncells,"heatmap.eps")))
+DoHeatmap(
+    object = sobject, 
+    features = c(topgenes$gene),
+    cells = names(newcellnames),
+    group.by = column,
+    size = 5,
+    label = T,
+    draw.lines = T
+)
+
+dev.off()
+```
+
+
+You can also make plots with only subsets of cells: Best for making umap plots where both conditions/individuals have equal representation. 
+```{r}
+#first check how many cells are in each group so you don't pick a number more than the min
+column = "sample_description"
+ncells = 2000
+genes = c("")
+features = c("")
+categories = c("")
+name = "equalcells"
+dir = ""
+
+table(sobject$sample_description)
+cellnames = sobject@meta.data[,column]
+names(cellnames) = colnames(sobject)
+groups = levels(cellnames)
+
+newcellnames = NULL
+for (group in groups){
+  cells = sample((cellnames)[cellnames == group],ncells)
+  newcellnames = c(newcellnames,cells)
+}
+
+#feature plots
+for(feature in c(genes,features)){
+  PrintSeuratGraph(namecard = name,graphtype = "feature",feature = feature,cellnames = newcellnames)
+}
+
+#split feature plots by individual
+for(feature in c(features)){
+  PrintSeuratGraph(namecard = paste0(name,"_split"),graphtype = "feature",feature = feature,split = "sample_description",cellnames = newcellnames)
+}
+
+#dim plots for clustering
+for(group in categories){
+  PrintSeuratGraph(namecard = name,graphtype = "dim",group = group, feature = group,cellnames = newcellnames)
+}
+
+#violin plots
+for(feature in c(genes,features)){
+  PrintSeuratGraph(namecard = name,graphtype = "violin",feature = feature,group = "seurat_clusters",cellnames = newcellnames)
+}
+```
+
+
+You can save umap and pc embeddings to load into other programs like Loupe and anything in Python like scvelo (velocity)
+```{r}
+#Save umap embeddings
+umap = sobject@reductions$umap@cell.embeddings
+umap$Cellname = rownames(umap)
+write.csv(umap,file = file.path(dir,"umap_embed.csv",row.names = F))
+
+#save pcs
+pc = sobject@reductions$pca@cell.embeddings
+pc$Cellname = rownames(pc)
+write.csv(pc,file = file.path(dir,"pc_embed.csv",row.names = F))
+
+#save metadata
+meta = sobject@meta.data
+meta$gene = rownames(meta)
+write.csv(pc,file = file.path(dir,"metadata.csv",row.names = F))
+```
+
+For PanoView (in Python, a way to mathematically validate # of clusters found)
+```{r}
+x = as.matrix(GetAssayData(sobject,slot = "counts"))
+x = x[rownames(x) %in% VariableFeatures(sobject),]
+annotation = sobject$sample_description #or any column
+
+
+write.csv(x,file = file.path(dir,"counts.csv"))
+write.csv(annotation,file = file.path(dir,"annotation.csv"))
+```
+
+You can add annotations from the annotationDB database: 
+
+```{r}
+library(org.Mm.eg.db)
+fc = read.csv("") #any spreadsheet with gene symbols or other identifiers
+ids=fc$gene 
+fromKey="SYMBOL" #must match the ids - could also be ensembl ID
+toKey=c("GENENAME") #whatever annotation you want to add - find with keytypes(db)
+db=org.Mm.eg.db
+selRes<-AnnotationDbi::select(db,keys=ids,keytype=fromKey,columns=c(fromKey,toKey))
+
+##this is really used to get particular keys of the keytype "ensembl" (or any other type)
+
+x=selRes[match(ids,selRes[,1]),1:2]
+identical(x$SYMBOL,fc$gene)
+fc$GeneName = x$GENENAME
+
+```
+
+Volcano Plot: 
+```{r}
+
+fc = read.csv("/Users/whippoorwill/Desktop/plots/allmarkers_vargenesMG_0215.csv",stringsAsFactors = F)
+colnames(fc)[8] = "Gene"
+```
+
+```{r}
+colnames(fc)[8] = "Gene"
+newlist = list()
+#Split by cluster
+for (i in c(0:9)){
+  newlist[[i+1]] = fc[fc$cluster == i,]
+}
+cluster = 4
+
+#select a single cluster
+setwd("~/Desktop/plots")
+fc = newlist[[cluster+1]]
+fc = fc[!is.na(fc$avg_logFC),]
+colorkeysdown = fc$Gene[fc$avg_logFC < -log2(1.15) & fc$p_val_adj < 10e-25]
+colorkeysup = fc$Gene[fc$avg_logFC > log2(1.15) & fc$p_val_adj < 10e-25]
+```
+
+
+
+```{r}
+allcolors = rep("darkgrey",length(fc$Gene))
+names(allcolors) = fc$Gene
+a = highlightcluster3
+
+allcolors[names(allcolors) %in% colorkeysdown] = "blue"
+allcolors[names(allcolors) %in% colorkeysup]= "red"
+allcolors[names(allcolors)%in% a] = "brown"
+names(allcolors)[allcolors == "brown"] = "labeled"
+names(allcolors)[allcolors == "red"] = "u"
+names(allcolors)[allcolors == "darkgrey"] = "-"
+names(allcolors)[allcolors == "blue"] = "d"
+```
+
+Make the plot
+  
+```{r}
+setEPS()
+postscript(paste0("~/Desktop/volcano_0505",cluster,"nolabel.eps"))
+EnhancedVolcano(fc,
+                lab = fc$Gene,
+                x = 'avg_logFC',
+                y = 'p_val_adj',
+                xlim = c(-3, 3),
+                title = paste0("LDAVM02_",cluster),
+                subtitle = "",
+                drawConnectors = F,
+                legendPosition = 'right',
+                legendVisible = F,
+                pCutoff = 10e-25,
+                FCcutoff = log2(1.15),
+                selectLab = a,
+                transcriptPointSize = 1.5,
+                transcriptLabSize = 2.0,
+                col=c('black', 'black', 'black', 'red3'),
+                colCustom = allcolors,
+                gridlines.major = F,
+                gridlines.minor = F,
+                colAlpha = 1)
+dev.off()
+
+```
+
+You can find what phase of the cell cycle each cell is in: 
+
+Cell cycle regression
+
+```{r}
+cc.genes <- readLines(con = "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/Code/regev_lab_cell_cycle_genes.txt")
+cc.genes<-tolower(cc.genes)
+cc.genes<-unname(sapply(cc.genes,function(x){x<-paste0(toupper(substr(x,1,1)),substring(x,first=2))}))
+s.genes <- cc.genes[1:43]
+g2m.genes <- cc.genes[44:97]
+
+
+mgAVM02 <- CellCycleScoring(object = mgAVM02, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+
+# view cell cycle scores and phase assignments
+head(x = mgAVM02@meta.data)
+
+RidgePlot(object = mgAVM02, features = c("Pcna", "Top2a", "Mcm6", "Mki67"))
+FeaturePlot(mgAVM02,"S.Score")
+FeaturePlot(mgAVM02,"G2M.Score")
+
+setEPS()
+postscript("~/Desktop/phasechartP5.eps")
+DimPlot(mgAVM02,group.by = "Phase",cells = mgAVM02$age == "P5")
+dev.off()
+
+save(mgAVM02,file = "~/Desktop/plots/mgAVM02.RData")
+```
+
+```{r}
+load("/Users/whippoorwill/Desktop/plots/mgAVM02.RData")
+mgAVM03 <- RunPCA(object = mgAVM02, pc.genes = c(s.genes, g2m.genes), do.print = FALSE, maxit=10000)
+PCAPlot(object = mgAVM03)
+PCAPlot(object = mgAVM02)
+var.genes = c(VariableFeatures(mgAVM03),'Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1','Hexb')
+var.genes = var.genes[!var.genes %in% c('Xist', 'Gm47283', 'Ddx3y', 'Eif2s3y', 'Tsix', 'Uty', 'AC149090.1PC_ 1')]
+VariableFeatures(mgAVM03) = var.genes
+mgAVM03 <- ScaleData(object = mgAVM03, features = var.genes, vars.to.regress = c("S.Score", "G2M.Score","nCount_RNA","percent.mito"))
+
+# Now, a PCA on the variable genes no longer returns components associated
+# with cell cycle
+mgAVM03 <- RunPCA(object = mgAVM03, features = var.genes, genes.print = 10)
+PCAPlot(object = mgAVM03)
+mgAVM03@reductions$UMAP<-NULL
+mgAVM03<-RunUMAP(mgAVM03,reduction = "pca",dims = 1:30, verbose = F)
+mgAVM03<-FindNeighbors(mgAVM03,dims=1:30,verbose=F)
+set.seed(1)
+mgAVM03<-FindClusters(mgAVM03,verbose=F,resolution = 0.5)
+
+DimPlot(object = mgAVM03, pt.size=0.5, label=F)
+DimPlot(object = mgAVM03, group.by="sample_description", pt.size=0.5)
+DimPlot(object = mgAVM03, group.by="finalclusters", pt.size=0.5, label=T)
+DimPlot(object = mgAVM03, group.by="sample_description",split.by = "finalclusters", pt.size=0.5,ncol = 3)
+
+```
+
+
+Code to remake this plot with only certain samples. You'll have to edit this to fit your sample/conditions
+
+```{r}
+
+r = table(droplevels(sobject$finalclusters),sobject$sample_description)
+#normalize to 1,000 cells per sample
+Control_P5 = (r[,1]/colSums(r)[1])*2000
+Deprived_P5 = (r[,3]/colSums(r)[3])*2000
+
+Control_P7 = (r[,2]/colSums(r)[2])*2000
+Deprived_P7 = (r[,4]/colSums(r)[4])*2000
+
+r5 = cbind(Control_P5,Deprived_P5)
+r5 = cbind(r5,total = rowSums(r5))
+
+r7 = cbind(Control_P7,Deprived_P7)
+r7 = cbind(r7,total = rowSums(r7))
+
+rc = cbind(Control_P5,Control_P7)
+rc = cbind(rc,total = rowSums(rc))
+#show a barplot with percent cells per cluster
+
+cols5 = c("lightblue","pink")
+cols7 = c("darkblue","red3")
+colsc = c("lightblue","darkblue")
+r1 = r5
+for (row in 1:nrow(r1)){
+  r1[row,] = r1[row,]/r1[row,ncol(r1)]*100
+  r1
+}
+r1 = r1[,1:2]
+relconpct = t(r1)
+cols = colsc
+setEPS()
+postscript("~/Desktop/3H_control.eps")
+barplot(relconpct, main="Cluster composition by percent of celltype",
+        xlab="Cluster", ylab = "% of cluster", ylim = c(0,100), col=cols,axisnames = T,
+        width = .2,xlim = c(0,5),legend = rownames(relconpct), space = 0.6,cex.names = 0.8,axis.lty = 1)
+dev.off()
+```
