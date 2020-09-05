@@ -194,7 +194,12 @@ add.genes = c("ptprc","lgmn","hexb","mpeg1.1","apoeb")
 regress = c("nFeature_RNA")
 
 sobject <- NormalizeData(sobject,normalization.method = "LogNormalize", scale.factor = 10000)
-sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = 20000)
+sobject<-FindVariableFeatures(sobject, selection.method = "vst",nfeatures = 10000)
+top10 <- c("cd74b","mpeg1.1","cd74a","hexb","apoeb")
+plot1 = VariableFeaturePlot(sobject)
+LabelPoints(plot=plot1, points = top10, repel = F, xnudge = 0.1, ynudge = 0.5)
+
+
 all.genes<-rownames(sobject)
 var.genes = VariableFeatures(sobject)
 
