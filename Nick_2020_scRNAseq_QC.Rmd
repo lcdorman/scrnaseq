@@ -25,6 +25,7 @@ library(ape)
 library(variancePartition)
 library(cowplot)
 library(Matrix)
+library(magrittr)
 
 #find out where you are
 getwd()
@@ -154,7 +155,7 @@ anno_vln = function(seurat_object = sobject, metric = "nCount_RNA", group = "sam
   n = length(levels(seurat_object@meta.data[,group.by]))
 
   #make a violin plot
-  a = VlnPlot(seurat_object,metric,group.by = group,pt.size = 0,log = T,cols = rep("grey",n))
+  a = VlnPlot(seurat_object,metric,group.by = group,pt.size = 0,log = F,cols = rep("grey",n))
 
   #make a simple function that quantifies percentiles for each column
   add.percentiles = function(x) {
@@ -194,31 +195,23 @@ plot(sort(Matrix::rowSums(GetAssayData(sobject)>=2)),xlab="gene rank",ylab="numb
 Gene Plot, scatter plot of gene expression across cells, (colored by sample) - sequencing depth relative to genes; looking for similarity across samples. Some cell types can have relatively few genes, but highly expressed, could show up as a second arc below the one seen here (should contain all samples though)
 ```{r}
 Idents(sobject) = "sample_description"
-FeatureScatter(sobject, "nCount_RNA", "nFeature_RNA")
-FeatureScatter(sobject, "nCount_RNA", "percent.mito")
-FeatureScatter(object=sobject,"nFeature_RNA","percent.mito")
-FeatureScatter(object=sobject,"percent.ribo","percent.mito")
+m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
 
-setwd("~/Desktop/Sequencing/Nick/2_2020/NickData/QC")
-setEPS()
-postscript("ncount_nfeature.eps")
-FeatureScatter(sobject, "nCount_RNA", "nFeature_RNA")
-dev.off()
+directory = "~/Desktop/QC"
+#Save graphs
+for (i in 1:(length(m)-1)){
+  graph = FeatureScatter(sobject,m[i],m[i+1])+ theme_bw()
+  setEPS()
+  postscript(file.path(directory,paste0(m[i],"_",m[i+1],project,"scatter.eps")))
+  print(graph)
+  dev.off()
+}
 
-setEPS()
-postscript("ncount_percentmito.eps")
-FeatureScatter(sobject, "nCount_RNA", "percent.mito")
-dev.off()
-
-setEPS()
-postscript("nfeature_percentmito.eps")
-FeatureScatter(object=sobject,"nFeature_RNA","percent.mito")
-dev.off()
-
-setEPS()
-postscript("percentribo_percentmito.eps")
-FeatureScatter(object=sobject,"percent.ribo","percent.mito")
-dev.off()
+#print graphs
+for (i in 1:(length(m)-1)){
+  graph = FeatureScatter(sobject,m[i],m[i+1])+ theme_bw()
+  print(graph)
+}
 ```
 Set limits based on the graphs
 ```{r}
@@ -228,91 +221,80 @@ clo = 1200
 chi = 15000
 flo = 500
 fhi = 3000
+rlo = 0
+rhi = 70
 ```
 
 Violin plot of 1) number of genes, 2) number of UMI and 3) percent mitochondrial genes; save with lines that show cutoffs
+
 ```{r}
-setwd("~/Desktop/Sequencing/Nick/2_2020/NickData/QC") #save the graphs somewhere; will only change directory during this chunk
-setEPS()
-postscript("nFeature_RNAall.eps")
-VlnPlot(
-  sobject,
-  c("nFeature_RNA"),group.by = "age",split.by = "individual",
-  pt.size = 0) + geom_abline(intercept = fhi, slope = 0, linetype = "dashed",color = "red", size = .8) + geom_abline(intercept = flo, slope = 0, linetype = "dashed",color = "black", size = .8)
-dev.off()
+group = "sample_description"
+#Make a table with your cutoff values
+m = c("nFeature_RNA","nCount_RNA","percent.mito","percent.ribo")
+tablelow = c(flo,clo,mlo,rlo)
+tablehigh = c(fhi,chi,mhi,rhi)
+t = as.data.frame(rbind(tablelow,tablehigh))
+colnames(t) = m
 
-setEPS()
-postscript("nCount_RNAall.eps")
-VlnPlot(
-  sobject,
-  c("nCount_RNA"),group.by = "age",split.by = "individual",
-  pt.size = 0) + geom_abline(intercept = chi, slope = 0, linetype = "dashed",color = "red", size = .8) + geom_abline(intercept = clo, slope = 0, linetype = "dashed",color = "black", size = .8)
-dev.off()
 
-setEPS()
-postscript("percentmito_all.eps")
-VlnPlot(
-  sobject,
-  c("percent.mito"),group.by = "age",split.by = "individual",
-  pt.size = 0)+ geom_abline(intercept = mhi, slope = 0, linetype = "dashed",color = "red", size = .8) + geom_abline(intercept = mlo, slope = 0, linetype = "dashed",color = "black", size = .8)
-dev.off()
+#Save graphs
+directory = "~/Desktop/QC"
+for (i in 1:ncol(t)){
+  metric = colnames(t)[i]
+  low = t[1,i]
+  high = t[2,i]
+  graph = anno_vln(metric = metric) + geom_abline(intercept = high, slope = 0, linetype = "dashed",color = "red", size = 0.8) + geom_abline(intercept = low, slope = 0, linetype = "dashed",color = "black", size = .8)
+  setEPS()
+  postscript(file.path(directory,paste0(colnames(t)[i],project,"withcutoffs.eps")))
+  print(graph)
+  dev.off()
+}
 
-VlnPlot(sobject,c("nFeature_RNA"),group.by = "age",split.by = "individual", pt.size = 0) + geom_abline(intercept = fhi, slope = 0, linetype = "dashed",color = "red", size = .8) + geom_abline(intercept = flo, slope = 0, linetype = "dashed",color = "black", size = .8)
+#print graphs
+for (i in 1:ncol(t)){
+   metric = colnames(t)[i]
+  low = t[1,i]
+  high = t[2,i]
+  graph = anno_vln(metric = metric) + geom_abline(intercept = high, slope = 0, linetype = "dashed",color = "red", size = 0.8) + geom_abline(intercept = low, slope = 0, linetype = "dashed",color = "black", size = .8)
+  print(graph)
+}
 
-VlnPlot(
-  sobject,
-  c("nCount_RNA"),group.by = "age",split.by = "individual",
-  pt.size = 0) + geom_abline(intercept = chi, slope = 0, linetype = "dashed",color = "red", size = .8) + geom_abline(intercept = clo, slope = 0, linetype = "dashed",color = "black", size = .8)
-
-VlnPlot(
-  sobject,
-  c("percent.mito"),group.by = "age",split.by = "individual",
-  pt.size = 0)+ geom_abline(intercept = mhi, slope = 0, linetype = "dashed",color = "red", size = .8) + geom_abline(intercept = mlo, slope = 0, linetype = "dashed",color = "black", size = .8)
-
-VlnPlot(
-  sobject,group.by = "age",split.by = "individual",
-  c("percent.ribo"),
-  pt.size = 0)
-```
-```{r}
-Idents(sobject) = "sample_description"
-FeatureScatter(sobject, "nCount_RNA", "nFeature_RNA") + geom_vline(xintercept = clo, linetype = "dashed",color = "black", size = .8) + geom_hline(yintercept = flo, linetype = "dashed",color = "black", size = .8) + geom_vline(xintercept = chi, linetype = "dashed",color = "red", size = .8) + geom_hline(yintercept = fhi, linetype = "dashed",color = "red", size = .8)
-
-FeatureScatter(sobject, "nCount_RNA", "percent.mito") + geom_vline(xintercept = clo, linetype = "dashed",color = "black", size = .8) + geom_hline(yintercept = mlo, linetype = "dashed",color = "black", size = .8) + geom_vline(xintercept = chi, linetype = "dashed",color = "red", size = .8) + geom_hline(yintercept = mhi, linetype = "dashed",color = "red", size = .8)
-
-FeatureScatter(object=sobject,"nFeature_RNA","percent.mito")+ geom_vline(xintercept = flo, linetype = "dashed",color = "black", size = .8) + geom_hline(yintercept = mlo, linetype = "dashed",color = "black", size = .8) + geom_vline(xintercept = fhi, linetype = "dashed",color = "red", size = .8) + geom_hline(yintercept = mhi, linetype = "dashed",color = "red", size = .8)
-
-FeatureScatter(object=sobject,"percent.ribo","percent.mito")+  geom_hline(yintercept = mlo, linetype = "dashed",color = "black", size = .8)+ geom_hline(yintercept = mhi, linetype = "dashed",color = "red", size = .8)
-
-setwd("~/Desktop/Sequencing/Nick/2_2020/NickData/QC")
-setEPS()
-postscript("ncount_nfeature_line.eps")
-FeatureScatter(sobject, "nCount_RNA", "nFeature_RNA") + geom_vline(xintercept = clo, linetype = "dashed",color = "black", size = .8) + geom_hline(yintercept = flo, linetype = "dashed",color = "black", size = .8) + geom_vline(xintercept = chi, linetype = "dashed",color = "red", size = .8) + geom_hline(yintercept = fhi, linetype = "dashed",color = "red", size = .8)
-
-dev.off()
-dev.off()
-
-setEPS()
-postscript("ncount_percentmito_line.eps")
-FeatureScatter(sobject, "nCount_RNA", "percent.mito") + geom_vline(xintercept = clo, linetype = "dashed",color = "black", size = .8) + geom_hline(yintercept = mlo, linetype = "dashed",color = "black", size = .8) + geom_vline(xintercept = chi, linetype = "dashed",color = "red", size = .8) + geom_hline(yintercept = mhi, linetype = "dashed",color = "red", size = .8)
-dev.off()
-
-setEPS()
-postscript("nfeature_percentmito_line.eps")
-FeatureScatter(object=sobject,"nFeature_RNA","percent.mito")+ geom_vline(xintercept = flo, linetype = "dashed",color = "black", size = .8) + geom_hline(yintercept = mlo, linetype = "dashed",color = "black", size = .8) + geom_vline(xintercept = fhi, linetype = "dashed",color = "red", size = .8) + geom_hline(yintercept = mhi, linetype = "dashed",color = "red", size = .8)
-dev.off()
-
-setEPS()
-postscript("percentribo_percentmito_line.eps")
-FeatureScatter(object=sobject,"percent.ribo","percent.mito")+  geom_hline(yintercept = mlo, linetype = "dashed",color = "black", size = .8)+ geom_hline(yintercept = mhi, linetype = "dashed",color = "red", size = .8)
-dev.off()
-
-setEPS()
-postscript("percentribo_ncount_line.eps")
-FeatureScatter(object=sobject,"percent.ribo","nCount_RNA")+  geom_hline(yintercept = clo, linetype = "dashed",color = "black", size = .8)+ geom_hline(yintercept = chi, linetype = "dashed",color = "red", size = .8)
-dev.off()
 ```
 
+
+Scatter plots with lines to show cutoffs
+```{r}
+t
+directory = "~/Desktop/QC"
+#Save graphs
+for (i in 1:(length(colnames(t))-1)){
+  xm = colnames(t)[i]
+  ym = colnames(t)[i+1]
+  xlow = t[1,i]
+  xhigh = t[2,i]
+  ylow = t[1,i+1]
+  yhigh = t[2,i+1]
+  graph = FeatureScatter(sobject,xm,ym)+ theme_bw() + geom_vline(xintercept = xlow, linetype = "dashed",color = "black", size = .8) + geom_vline(xintercept = xhigh, linetype = "dashed",color = "red", size = .8)+ geom_hline(yintercept = ylow, linetype = "dashed",color = "black", size = .8)  + geom_hline(yintercept = yhigh, linetype = "dashed",color = "red", size = .8)
+  setEPS()
+  postscript(file.path(directory,paste0(m[i],"_",m[i+1],project,"scatter_withcutoffs.eps")))
+  print(graph)
+  dev.off()
+}
+
+#print graphs
+for (i in 1:(length(colnames(t))-1)){
+  xm = colnames(t)[i]
+  ym = colnames(t)[i+1]
+  xlow = t[1,i]
+  xhigh = t[2,i]
+  
+  ylow = t[1,i+1]
+  yhigh = t[2,i+1]
+  
+  graph = FeatureScatter(sobject,xm,ym)+ theme_bw() + geom_vline(xintercept = xlow, linetype = "dashed",color = "black", size = .8) + geom_vline(xintercept = xhigh, linetype = "dashed",color = "red", size = .8)+ geom_hline(yintercept = ylow, linetype = "dashed",color = "black", size = .8)  + geom_hline(yintercept = yhigh, linetype = "dashed",color = "red", size = .8)
+  print(graph)
+}
+```
 
 
 Filtering cells: note that they are taking these filters and duplicating them across all samples. Use -Inf instead of 0 because not all the filters have to be positive values, and to avoid any errors due to truncation. 
@@ -320,7 +302,8 @@ Filtering cells: note that they are taking these filters and duplicating them ac
 How to select filters??? noise vs signal - get them from the violin plots and the matrix, capture the bulk of cells but exclude outliers (say with mtDNA filter) - can also look at percentiles, maybe get rid of top 5% since it was very different from the rest. Basically eliminate outliers and don't include cells that have hardly any genes or have a ton of genes expressed. First save the original object: 
 
 ```{r}
-save(sobject,file = file.path("~/Desktop/Sequencing/Nick/2_2020/NickData/Data/Nick2020_unfiltered.RData"))
+directory = "~/Desktop/Sequencing/Nick/2_2020/NickData"
+#save(sobject,file = file.path(directory,"afterQC.RData"))
 ```
 
 
