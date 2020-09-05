@@ -108,8 +108,6 @@ for (dim in dims){
   print(DimPlot(sobject,group.by = dim, label = T))
 }
 
-
-
 FeaturePlot(sobject,genes)
 FeaturePlot(sobject,QC)
 
@@ -196,7 +194,7 @@ add.genes = c("ptprc","lgmn","hexb","mpeg1.1","apoeb")
 regress = c("nFeature_RNA")
 
 sobject <- NormalizeData(sobject,normalization.method = "LogNormalize", scale.factor = 10000)
-sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = 10000)
+sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = 20000)
 all.genes<-rownames(sobject)
 var.genes = VariableFeatures(sobject)
 
@@ -217,156 +215,100 @@ save(sobject,file = file.path(dir,paste0(keep,"only_umap.RData")))
 
 
 ```{r}
-VlnPlot(sobject,add.genes,group.by = "sample_description")
-GetAssayData(sobject)[1:10, 1:15]
-table(sobject$sample_description)
+genes = c("mpeg1.1","apoeb","ptprc","hexb")
+dims = c("seurat_clusters","sample_description","age")
+QC = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
+
+for (dim in dims){
+  print(DimPlot(sobject,group.by = dim, label = T))
+}
+
+FeaturePlot(sobject,genes)
+FeaturePlot(sobject,QC)
+
+VlnPlot(sobject,genes,sort = "increasing",pt.size = 0.01)
+
+#Build a clustering tree
+Idents(sobject) = "seurat_clusters"
+sobject= BuildClusterTree(sobject,dims = 1:30)
+tree = sobject@tools$BuildClusterTree
+plot.phylo(tree, use.edge.length = T, direction = "rightwards")
 ```
 
-
-Filtering out genes in Seurat - use AFTER normalization. Works on data object (i.e. normalized, filtered data). 
-Option A: standard
-
+Save the tree
 ```{r}
-sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = 6000)
-top10 <- head(VariableFeatures(sobject),10)
-plot1 <- VariableFeaturePlot(sobject)
-plot2 <- LabelPoints(plot=plot1, points = top10, repel = T, xnudge = 0, ynudge = 0)
-plot2
+Idents(sobject) = "celltypecluster"
+sobject= BuildClusterTree(sobject,dims = 1:30)
+tree = sobject@tools$BuildClusterTree
+setEPS()
+postscript(file.path(dir,paste0(keep,"only_tree.eps")))
+plot.phylo(tree, use.edge.length = T, direction = "rightwards")
+dev.off()
+
 ```
 
-Scale the data
-```{r}
-all.genes<-rownames(sobject)
-var.genes = VariableFeatures(sobject)
-add.genes = c('fcrls', 'olfml3', 'lgmn', 'cx3cr1','hexb','apoeb','mpeg1.1')
-add.genes = add.genes[!add.genes %in% var.genes]
-any(add.genes %in% var.genes)
-scalegenes = c(var.genes,add.genes)
-
-sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = c("nFeature_RNA"))
-```
-
-
-
-Dimensionality reduction. Note that UMAP can be run directly on most variable features as well, but this will take forever unless you severely restrict #genes. 
-```{r}
-sobject <- RunPCA(sobject,features = scalegenes,npcs = 50, verbose = FALSE)
-set.seed(1)
-#figure out how many PCs to use - can default to 30
-ElbowPlot(sobject,ndims = 50, reduction = "pca")
-print(sobject[["pca"]], dims = 1:20, nfeatures = 5)
-#look for heat shock proteins or Malat1
-FeaturePlot(sobject,"percent.mito",reduction = "pca",dims = 1:2 )
-```
-
-
-```{r}
-set.seed(1)
-sobject<-RunUMAP(sobject,reduction = "pca",dims = 1:30, verbose = F)
-sobject<-FindNeighbors(sobject,dims=1:30,verbose=F)
-set.seed(1)
-res = seq(0.5,3,by = 0.5) #set this to anything
-sobject<-FindClusters(sobject,verbose=F,resolution = 0.3) 
-save(sobject,file = file.path(dir,"Graphs_Analysis_August2020 mpeg only/Data/mpegonly_all_3.RData"))
-```
 
 Function to print multiple graphs: 
-
 ```{r}
-PrintSeuratGraph = function(namecard = "a",sobject,graphtype = "feature",feature = NULL,group = NULL,split=NULL,cellnames=NULL){
+dir = "~/Desktop/QC"
+PrintSeuratGraph = function(namecard = "a",seurat_object = sobject,graphtype = "feature",feature = NULL,group = NULL,split=NULL,cellnames=NULL){
   if (!is.null(cellnames)){
-    Idents(sobject) = cellnames[1]
-    cells = colnames(sobject)[Idents(sobject) %in% cellnames[2:length(cellnames)]]} 
+    Idents(seurat_object) = cellnames[1]
+    cells = colnames(seurat_object)[Idents(seurat_object) %in% cellnames[2:length(cellnames)]]} 
   else {cells = cellnames}
   if (graphtype == "feature"){
-    graph = FeaturePlot(sobject,features = feature,split.by = split, cells = cells,cols = c("lightgrey","lightblue","yellow","orange","darkorange","red"))
+    graph = FeaturePlot(seurat_object,features = feature,split.by = split, cells = cells,cols = c("lightgrey","lightblue","yellow","orange","darkorange","red"))
   }
   if (graphtype == "violin"){
-    graph = VlnPlot(sobject,features = feature, pt.size = 0.1, idents = cellnames[2:length(cellnames)],group.by = group, split.by = split)
+    graph = VlnPlot(seurat_object,features = feature, pt.size = 0.1, idents = cellnames[2:length(cellnames)],group.by = group, split.by = split)
   }
   if (graphtype == "dim"){
-    graph = DimPlot(sobject,cells = cells, group.by = group, split.by = split)
+    graph = DimPlot(seurat_object,cells = cells, group.by = group, split.by = split)
     
   }
   name = paste0(feature,"_",graphtype,namecard,".eps")
   graph
   setEPS()
-  postscript(file.path("~/Desktop",name))
+  postscript(file.path(dir,name))
   print(graph)
   dev.off()
 }
 
 ```
 
+Block to print multiple graphs: 
 ```{r}
-DimPlot(sobject,label=T,reduction = "umap")
-genes = c("marco","mpeg1.1","apoeb","p2ry12","ptprc","hexb","irf8","spi1b","spi1a","csf1ra","csf1rb","slc7a7","c1qa","c1qb","c1qc")
-
+genes = c("marco","mpeg1.1","apoeb","p2ry12","ptprc","hexb","irf8","spi1b","spi1a","csf1ra","csf1rb","slc7a7","c1qa","c1qb","c1qc","cd74a","cd74b")
 features = c("percent.mito","percent.ribo","nCount_RNA","nFeature_RNA")
-genesHB = c("ccl19a.1","wipf1a","b2m","plp1b","krt18b","cxcr4b","cd74b","cd74a","gpatch8","mhc2dab","ms4a17a.6","cdc42l","dhrs9","bzw1b","lygl1","hmga1a","top1l","plekho2")
-
-genesOT = c("bzw2","slc40a1","g0s2","ctsla","eepd1","slc43a2b","apoeb","pitpnaa","rnaset2","mt2","ctsz","cndp2","dpp7","abca1a","pdgfd","ctsd","pepd","mafbb","ppdpfb","slc7a7","glud1b","porb","galk1","bri3","glula","abhd12","ubb","rgl1","mpp1","hmgb3a","abca1b","ctsba","ctsc","vat1")
-
-length(genesOT)
-
-genes = genes[genes %in% scalegenes]
-FeaturePlot(sobject,genes[1:5],reduction = "umap")
-FeaturePlot(sobject,genes[6:9], reduction = "umap")
-FeaturePlot(sobject,features = "percent.mito")
-FeaturePlot(sobject,features = "nCount_RNA")
-FeaturePlot(sobject,features = "nFeature_RNA")
-FeaturePlot(sobject,features = "percent.ribo")
-
-for(feature in c(genes,features)){
-  PrintSeuratGraph(namecard = "all_mpeg",sobject=sobject,graphtype = "feature",feature = feature)
-}
-
 groups = c("age","sample_description","seurat_clusters")
+genes = genes[genes %in% rownames(GetAssayData(sobject,slot = "data"))]
 
+#just to print to the console some nice graphs
+FeaturePlot(sobject,genes[1:5])
+FeaturePlot(sobject,genes[6:9])
+
+#feature plots
+for(feature in c(genes,features)){
+  PrintSeuratGraph(namecard = "all_mpeg",graphtype = "feature",feature = feature)
+}
+
+#split feature plots by individual
+for(feature in c(features)){
+  PrintSeuratGraph(namecard = "all_mpeg_split",graphtype = "feature",feature = feature,split = "sample_description")
+}
+
+#dim plots for clustering
 for(group in groups){
-  PrintSeuratGraph(namecard = "all_mpeg",sobject=sobject,graphtype = "dim",group = group, feature = group)
+  PrintSeuratGraph(namecard = "all_mpeg",graphtype = "dim",group = group, feature = group)
 }
 
-for(feature in genes){
-  PrintSeuratGraph(namecard = "all_mpeg",sobject=sobject,graphtype = "violin",feature = feature,group = "seurat_clusters")
+#violin plots
+for(feature in c(genes,features)){
+  PrintSeuratGraph(namecard = "all_mpeg",graphtype = "violin",feature = feature,group = "seurat_clusters")
 }
 ```
 
-
-
-```{r}
-DimPlot(sobject,reduction = "umap",group.by = "sample_description")
-DimPlot(sobject,reduction = "umap",group.by = "sample_description",split.by = "age")
-DimPlot(sobject,reduction = "umap",group.by = "seurat_clusters",split.by = "sample_description",label = F)
-
-setEPS()
-postscript("~/Desktop/juv_adult_split.eps")
-DimPlot(sobject,reduction = "umap",group.by = "sample_description",split.by = "age")
-dev.off()
-
-setEPS()
-postscript("~/Desktop/juv_adult_umap.eps")
-DimPlot(sobject,reduction = "umap",group.by = "sample_description")
-dev.off()
-
-setEPS()
-postscript("~/Desktop/splitall_umap.eps")
-DimPlot(sobject,reduction = "umap",group.by = "seurat_clusters",split.by = "sample_description",label = F)
-dev.off()
-```
-
-
-```{r}
-Idents(sobject) = "seurat_clusters"
-sobject= BuildClusterTree(sobject,dims = 1:30)
-tree = sobject@tools$BuildClusterTree
-setEPS()
-postscript("~/Desktop/tree_allmpeg.eps")
-plot.phylo(tree, use.edge.length = T, direction = "rightwards")
-dev.off()
-```
-
-Heatmap for sobject
+Heatmap for clusters within this celltype
 ```{r}
 Idents(sobject) = "seurat_clusters"
 markers_all <- FindAllMarkers(
