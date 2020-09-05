@@ -424,6 +424,7 @@ dev.off()
 
 
 ```{r}
+Idents(sobject) = "celltype"
 markers_all = FindAllMarkers(
   object = sobject,
   features = rownames(sobject),
