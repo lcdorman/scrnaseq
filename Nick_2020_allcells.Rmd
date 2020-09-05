@@ -1,5 +1,5 @@
 ---
-title: "Seurat_Code_LD_2020"
+title: "Seurat_Code_PostQC_2020"
 output: html_document
 ---
 
@@ -33,51 +33,100 @@ dir= "/Users/whippoorwill/Desktop/Sequencing/Nick/2_2020"
 #setwd(dir)
 ```
 
-
 ```{r}
 load(file.path(dir,"NickData/Nick2020_unfiltered.RData"))
 ```
 
+Set limits based on the graphs from the QC page
 ```{r}
-load(file.path(dir,"NickData/sobject_filtered_1200_umap.RData"))
+mlo = -0.1
+mhi = 10
+clo = 1200
+chi = 15000
+flo = 500
+fhi = 3000
+rlo = 0
+rhi = 70
 ```
-Split cluster 3
-```{r}
 
+Subset the data. Printing tables lets you see the progression as you tighten your QC cutoffs. 
+```{r}
+print("initial")
+table(sobject$sample_description) #print out initial cell counts
+sobject = subset(sobject, subset = percent.mito>mlo & percent.mito < mhi) #subset mitochondria
+print("mito")
+table(sobject$sample_description) #new cell counts
+sobject = subset(sobject, subset = nCount_RNA>clo & nCount_RNA < chi)
+print("ncount")
+table(sobject$sample_description)
+sobject = subset(sobject, subset = nFeature_RNA>flo & nFeature_RNA < chi)
+print("nfeature")
+table(sobject$sample_description)
+```
+
+```{r}
+save(sobject, file = file.path(dir,"sobject_filtered_umap.RData"))
+```
+
+Find variable features, normalize, scale, run PCA, clustering, umap
+
+Include any genes that may not vary a lot but are important for downstream applications.
+```{r}
+add.genes = c('ptprc','lgmn','hexb','apoeb','mpeg1.1')
+regress = c("nFeature_RNA")
+```
+
+```{r}
 sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = 25000)
 all.genes<-rownames(sobject)
 var.genes = VariableFeatures(sobject)
-add.genes = c('fcrls', 'olfml3', 'lgmn', 'cx3cr1','hexb','apoeb','mpeg1.1')
+
 add.genes = add.genes[!add.genes %in% var.genes]
 any(add.genes %in% var.genes)
 scalegenes = c(var.genes,add.genes)
-sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = c("nFeature_RNA"))
+
+sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = regress)
 sobject <- RunPCA(sobject,features = scalegenes,npcs = 50, verbose = FALSE)
-set.seed(1)
+
 sobject<-RunUMAP(sobject,reduction = "pca",dims = 1:30, verbose = F)
 sobject<-FindNeighbors(sobject,dims=1:30,verbose=F)
-set.seed(1)
-res = seq(0.5,3,by = 0.5) #set this to anything
-sobject<-FindClusters(sobject,verbose=F,resolution = 0.3) 
-save(sobject,file = file.path(dir,"Graphs_Analysis_August2020 mpeg only/Data/mpegonly_all_2.RData"))
 
-
-
-DimPlot(sobject,group.by = "seurat_clusters",label = T)
-FeaturePlot(sobject,"mpeg1.1")
-DimPlot(sobject,group.by = "sample_description")
+res = 0.3 #set this to anything
+sobject<-FindClusters(sobject,verbose=F,resolution = res) 
+save(sobject,file = file.path(dir,"filtered_afterQC_umap.RData"))
 ```
 
+Plot important objects; check parameters before moving forward, evaluate QC
+```{r}
+dims = c("seurat_clusters","sample_description","age")
+QC = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
+
+for (dim in dims){
+  DimPlot(sobject,group.by = dim, label = T)
+}
+
+FeaturePlot(sobject,add.genes)
+FeaturePlot(sobject,QC)
+
+VlnPlot(sobject,add.genes,sort = "increasing",pt.size = 0.01)
+```
+
+Build a clustering tree
 ```{r}
 Idents(sobject) = "seurat_clusters"
-DimPlot(sobject,label = T)
-FeaturePlot(sobject,"mpeg1.1")
-VlnPlot(sobject,"mpeg1.1",sort = "increasing")
 sobject= BuildClusterTree(sobject,dims = 1:30)
 tree = sobject@tools$BuildClusterTree
 plot.phylo(tree, use.edge.length = T, direction = "rightwards")
-
 ```
+
+Save the tree
+```{r}
+setEPS()
+postscript(file.path(dir,"tree_iteration1.eps"))
+plot.phylo(tree, use.edge.length = T, direction = "rightwards")
+dev.off()
+```
+
 Select mpeg+ clusters
 ```{r}
 #using mpeg_all
