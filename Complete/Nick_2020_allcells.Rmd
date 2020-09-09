@@ -748,6 +748,8 @@ fc$GeneName = x$GENENAME
 
 ```
 
+
+********************
 Volcano Plot: 
 ```{r}
 
@@ -874,23 +876,25 @@ DimPlot(object = mgAVM03, group.by="sample_description",split.by = "finalcluster
 ```
 
 
-Code to remake this plot with only certain samples. You'll have to edit this to fit your sample/conditions
+Barplot
 
 ```{r}
-
-r = table(droplevels(sobject$finalclusters),sobject$sample_description)
+sobject = mgAVM02
+r = table(droplevels(sobject$finalclusters),sobject$fulldescription)
+x = grep("P7",colnames(r))
+r = r[,x]
 #normalize to 1,000 cells per sample
-Control_P5 = (r[,1]/colSums(r)[1])*2000
-Deprived_P5 = (r[,3]/colSums(r)[3])*2000
+Control_female = (r[,1]/colSums(r)[1])*2000
+Deprived_female = (r[,3]/colSums(r)[3])*2000
 
-Control_P7 = (r[,2]/colSums(r)[2])*2000
-Deprived_P7 = (r[,4]/colSums(r)[4])*2000
+Control_male = (r[,2]/colSums(r)[2])*2000
+Deprived_male = (r[,4]/colSums(r)[4])*2000
 
-r5 = cbind(Control_P5,Deprived_P5)
-r5 = cbind(r5,total = rowSums(r5))
+rf = cbind(Control_female,Deprived_female)
+rf = cbind(rf,total = rowSums(rf))
 
-r7 = cbind(Control_P7,Deprived_P7)
-r7 = cbind(r7,total = rowSums(r7))
+rm = cbind(Control_male,Deprived_male)
+rm = cbind(rm,total = rowSums(rm))
 
 rc = cbind(Control_P5,Control_P7)
 rc = cbind(rc,total = rowSums(rc))
@@ -899,14 +903,14 @@ rc = cbind(rc,total = rowSums(rc))
 cols5 = c("lightblue","pink")
 cols7 = c("darkblue","red3")
 colsc = c("lightblue","darkblue")
-r1 = r5
+r1 = rm
 for (row in 1:nrow(r1)){
   r1[row,] = r1[row,]/r1[row,ncol(r1)]*100
   r1
 }
 r1 = r1[,1:2]
 relconpct = t(r1)
-cols = colsc
+cols = cols7
 setEPS()
 postscript("~/Desktop/3H_control.eps")
 barplot(relconpct, main="Cluster composition by percent of celltype",
@@ -914,3 +918,56 @@ barplot(relconpct, main="Cluster composition by percent of celltype",
         width = .2,xlim = c(0,5),legend = rownames(relconpct), space = 0.6,cex.names = 0.8,axis.lty = 1)
 dev.off()
 ```
+
+ contingency tables for barplots
+ 
+```{r}
+
+all = table(LD1$SCT_snn_res.0.3,LD1$sample_description)
+total = colSums(all)
+clusters = rownames(all)
+test = list()
+chi = chisq.test(all)
+
+
+for (cluster in clusters){
+  x = rbind(all[cluster,],total-all[cluster,])
+  rownames(x) = c(cluster,"total")
+  chi = chisq.test(x)
+  f = sqrt(chi$statistic/sum(x))
+  test[[cluster]] = chi
+  test[[cluster]]$f = f
+}
+
+#for opcs_2: 0.19
+v = sqrt(test$`2`$statistic/sum(all["2",]))
+#for microglia_0: 0.11
+v = sqrt(test$`0`$statistic/sum(all["0",]))
+
+#for astro_1 = 0.5
+v = sqrt(test$astrocytes_1$statistic/sum(all["astrocytes_1",]))
+v
+#for astro_5 = 0.8
+v = sqrt(test$astrocytes_5$statistic/sum(all["astrocytes_5",]))
+v
+
+#for opcs_9 = 0.3
+v = sqrt(test$opcs_9$statistic/sum(all["opcs_9",]))
+v
+
+#for microglia_8 = 0.27
+v = sqrt(test$microglia_8$statistic/sum(all["microglia_8",]))
+v
+
+#for microglia_6 = 1.13
+v = sqrt(test$microglia_6$statistic/sum(all["microglia_6",]))
+v
+
+#for microglia_0 = 0.19
+v = sqrt(test$microglia_0$statistic/sum(all["microglia_0",]))
+v
+
+
+```
+ 
+

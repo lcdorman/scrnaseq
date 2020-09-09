@@ -431,7 +431,7 @@ dev.off()
 
 Cellphone db: also from jupyter, see python script for details. "X3.04" means from cluster 3 (source) to cluster 4 (target)
 ```{r}
-cellphonedb = read.csv("significant_means.csv",stringsAsFactors = F)
+cellphonedb = read.csv("../Spreadsheets/significant_means.csv",stringsAsFactors = F)
 #cellphonedb = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/significant_means.csv",stringsAsFactors = F)
 colnames(cellphonedb)
 ```
@@ -488,7 +488,243 @@ dev.off()
 ```
 
 
+Load in barres data, use it to remove genes from sobject that are specific to neurons
+```{r}
+sobject = mgAVM02
+barres = read.csv("../Spreadsheets/barreslab_rnaseq.csv",stringsAsFactors = F)
 
 
+```
 
+Specify which columns are your cell of interest (coi) and which are other cells (other)
+
+```{r}
+coi = 4
+colnames(barres)[coi]
+other = c(3:(coi-1),(coi+1):9)
+```
+
+This function will calculate a Cell Type specificity by dividing the fpkm for your cell type by the average fpkm for all other cell types.
+```{r}
+for (i in 1:nrow(barres)){
+  row = barres[i,]
+  mspec = as.numeric(row[coi])/mean(as.numeric(row[other]),na.rm = T)
+  barres[i,10] = mspec
+}
+colnames(barres)[10] = "Specificity"
+```
+
+Find specificity distribution
+
+```{r}
+mean(barres[,10])
+min(barres[,10])
+max(barres[,10])
+quantile(barres[,10],probs = c(0.5,0.90))
+#anything above 4.8 = neuron specific
+```
+Remove neuron-specific genes and recalculate pcs
+
+```{r}
+speclim = 2.5
+genes = rownames(sobject)
+length(genes)
+
+barres_sobject = barres[barres$Gene.symbol %in% genes,]
+barres_sobject = barres[barres$Specificity>speclim,]
+dim(barres_sobject)
+
+genes_remove = barres_sobject$Gene.symbol
+VariableFeatures(sobject) = VariableFeatures(sobject)[!VariableFeatures(sobject) %in% genes_remove]
+```
+
+Renormalize/recalculate sobject
+```{r}
+var.genes = VariableFeatures(sobject)
+regress = c("nCount_RNA","percent.mito")
+
+sobject<-ScaleData(sobject,features = var.genes, vars.to.regress = regress)
+```
+
+Run PCA analysis
+```{r}
+sobject <- RunPCA(sobject,features = var.genes,npcs = 50, verbose = FALSE)
+
+ElbowPlot(sobject,ndims = 50, reduction = "pca")
+print(sobject[["pca"]], dims = 1:20, nfeatures = 5)
+```
+
+Once you are satisfied with pc's, run clustering: 
+```{r}
+pcs = 1:30
+sobject<-RunUMAP(sobject,reduction = "pca",dims = pcs, verbose = F)
+sobject<-FindNeighbors(sobject,dims=pcs,verbose=F)
+
+res = 0.5 #set this to anything
+sobject<-FindClusters(sobject,verbose=F,resolution = res) 
+
+```
+
+
+```{r}
+b = barres[barres$Gene.symbol %in% var.genes,]
+b = b[order(b$Specificity,decreasing = T),]
+b[1:30,]
+```
+
+```{r}
+DimPlot(sobject,cells.highlight = names(sobject$finalclusters)[sobject$finalclusters == '3'])
+
+```
+Save pcs and gene list for scvelo
+
+```{r}
+pcs = sobject@reductions$pca@cell.embeddings
+pcs = cbind("Cellname" = rownames(pcs), pcs)
+write.csv(pcs, file = "~/Desktop/Jupyter/mgAVM02/pcs_noneuronal.csv",row.names = F)
+```
+```{r}
+genes = as.data.frame(VariableFeatures(sobject))
+colnames(genes) = "Genes"
+write.csv(genes, file = "~/Desktop/Jupyter/mgAVM02/genes_noneuronal.csv",row.names = F)
+```
+
+
+For cellphonedb: need to make "meta.txt" and "counts.txt", put in opc folder in jupyter
+should include all microglia clusters + opc clusters + oligo for good measure
+```{r}
+load("/Users/whippoorwill/Desktop/Sequencing/LD_RNASeq2018/RData_v3/Current_LD1_march30.RData")
+```
+
+
+```{r}
+sobject1 = mgAVM02
+sobject2 = LD1
+sobject2 = subset(sobject2,subset = celltype %in% c("opcs","oligos"))
+column = "celltypecluster"
+```
+
+Add in a metadata column with celltypecluster
+```{r}
+meta = paste0("microglia_",sobject1$finalclusters)
+names(meta) = colnames(sobject1)
+meta2 = sobject2$celltypecluster
+meta = as.data.frame(c(meta,meta2))
+meta[,1] = as.character(meta[,1])
+colnames(meta) = "Cluster"
+#meta = cbind("Cellname" = rownames(meta),"Cluster" = meta[,1])
+write.table(meta,file = "~/Desktop/Jupyter/OPC/meta.txt",sep = "\t",row.names = T,quote = F)
+```
+
+Make a counts file with both opcs and microglia
+```{r}
+countsm = GetAssayData(sobject1,slot = "counts")
+countso = GetAssayData(sobject2,slot = "counts")
+
+o = rownames(countso)
+m = rownames(countsm)
+
+length(o)
+o =  o[o %in% m]
+length(o)
+
+m = m[m %in% o]
+length(m)
+
+countsm = countsm[rownames(countsm) %in% m,]
+countso = countso[rownames(countso) %in% o,]
+
+head(countsm[,1])
+head(countso[,1])
+
+countsm = countsm[order(rownames(countsm)),]
+countso = countso[order(rownames(countso)),]
+```
+
+
+```{r}
+if (!identical(rownames(countso),rownames(countsm))){print("fix gene order")}
+if (identical(rownames(countso),rownames(countsm))){
+  counts = cbind(countsm,countso)
+  rownames(counts) = toupper(rownames(counts)) #convert to ensemble ids
+  library(org.Hs.eg.db)
+ #any spreadsheet with gene symbols or other identifiers
+  ids=rownames(counts) 
+  fromKey="SYMBOL" #must match the ids - could also be ensembl ID
+  toKey=c("ENSEMBL") #whatever annotation you want to add - find with keytypes(db)
+  db=org.Hs.eg.db
+  selRes<-AnnotationDbi::select(db,keys=ids,keytype=fromKey,columns=c(fromKey,toKey))
+
+  ##this is really used to get particular keys of the keytype "ensembl" (or any other type)
+
+  x=selRes[match(ids,selRes[,1]),1:2]
+  identical(x$SYMBOL,rownames(counts))
+  rownames(counts) = x$ENSEMBL
+  ids = rownames(counts)
+  keep = !is.na(ids)
+  counts = counts[keep,]
+  write.table(counts,file = "~/Desktop/Jupyter/OPC/counts.txt",sep = "\t", quote = F,row.names = T)
+}
+
+
+```
+
+
+Cellphone db: also from jupyter, see python script for details. "X3.04" means from cluster 3 (source) to cluster 4 (target)
+```{r}
+cellphonedb = read.table("../Spreadsheets/OPCsignificant_means.txt",stringsAsFactors = F)
+#cellphonedb = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/significant_means.csv",stringsAsFactors = F)
+colnames(cellphonedb)
+```
+count per interaction, remove rows with nothing
+```{r}
+cdb = cellphonedb[,13:28]
+cdb = cdb[rowSums(cdb,na.rm = T)>0,]
+```
+
+Replace NA with 0 and any number with 1 (count incidents)
+```{r}
+cdb[!is.na(cdb)] = 1
+cdb[is.na(cdb)] = 0
+cd = colSums(cdb,na.rm = T)
+cd
+```
+**Make a table(* 
+
+First we will repeat the names for source and target and then rename source and target to the appropriate portions of the name itself. 
+
+```{r}
+cd = rbind("Source" = names(cd),"Target" = names(cd),"interactions" = cd)
+cd["Source",] = sapply(cd["Source",],function(x)paste0("Source_",strsplit(x,"")[[1]][2]))
+cd["Target",] = sapply(cd["Target",],function(x)strsplit(x,"\\.")[[1]][2]) #split on ".", take 2nd
+cd["Target",] =sapply(cd["Target",],function(x)paste0("Target_",strsplit(x,"")[[1]][2])) #remove "0"
+```
+
+Make a 3D table first, then iterate through each matrix and add the 3rd dimension (#interactions) to its appropriate position
+
+```{r}
+x = table(cd["Source",],cd["Target",],cd["interactions",])
+dimnames(x)
+dim(x)[3]
+a = x[,,1]
+for (i in 1:dim(x)[3]){
+  t = x[,,i]
+  a[t == 1] = dimnames(x)[[3]][i]
+}
+```
+
+
+```{r}
+library(pheatmap)
+
+b = as.matrix.data.frame(a,rownames.force = T)
+colnames(b) = colnames(a)
+b = apply(b,MARGIN = c(1,2), function(x)as.numeric(x))
+
+pheatmap(b, display_numbers = T,scale = "none",cluster_cols = F,cluster_rows = F )
+setEPS()
+postscript("heatmap_cellphonedb.eps")
+pheatmap(b, display_numbers = T,scale = "none",cluster_cols = F,cluster_rows = F,color = c("lightgrey","lightyellow","gold","orange","darkorange","red","darkred" ))
+dev.off()
+```
 
