@@ -1,7 +1,0 @@
-"0","b <- ggplot(ac, aes(y = Peak.Score, x = log(Specificity)))"
-"0",""
-"0",""
-"0","c = b + geom_point(aes(color = cluster)) +"
-"0","  scale_color_manual(values = c('green','blue','darkgrey','purple')) + geom_text( "
-"0","    data=ac %>% filter(log(Specificity)>5 | log(Specificity)<(-3) | Peak.Score>100),aes(label=gene),nudge_x = -0.5,check_overlap = T)"
-"0","c"

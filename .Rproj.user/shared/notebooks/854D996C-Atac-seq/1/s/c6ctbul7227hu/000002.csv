@@ -1,6 +1,0 @@
-"0","for (i in 1:nrow(barres)){"
-"0","  row = barres[i,]"
-"0","  mspec = as.numeric(row[coi])/mean(as.numeric(row[other]),na.rm = T)"
-"0","  barres[i,10] = mspec"
-"0","}"
-"0","colnames(barres)[10] = ""Specificity"""

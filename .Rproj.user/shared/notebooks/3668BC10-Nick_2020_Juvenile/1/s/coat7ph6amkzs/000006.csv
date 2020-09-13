@@ -1,6 +1,0 @@
-"0","for(feature in c(genes)){
-  PrintSeuratGraph(namecard = ""Juvenile_mpeg"",sobject=sobject,graphtype = ""feature"",feature = feature)
-}
-"
-"2","Error: None of the requested features were found: ccl33.3 in slot data
-"

@@ -1,2 +1,0 @@
-"0","cdb = cellphonedb[,13:28]"
-"0","cdb = cdb[rowSums(cdb,na.rm = T)>0,]"

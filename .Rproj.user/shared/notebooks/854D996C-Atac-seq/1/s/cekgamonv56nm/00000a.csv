@@ -1,6 +1,0 @@
-"0","#if public: "
-"0","#peaks = read.csv(""https://github.com/lcdorman/scrnaseq/blob/master/MergedpeaksPBSAnnotated_v2.csv"",stringsAsFactors = F)"
-"0",""
-"0","#if private:"
-"0","peaks = read.csv(""MergedpeaksPBSAnnotated_v2.csv"",stringsAsFactors = F)"
-"0","head(peaks)"

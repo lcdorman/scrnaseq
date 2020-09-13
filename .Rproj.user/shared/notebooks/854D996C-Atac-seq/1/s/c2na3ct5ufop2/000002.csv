@@ -1,4 +1,0 @@
-"0","cluster = ""8"""
-"0","genes_cluster = genes[genes$cluster == cluster,]"
-"0","peaks_cluster = peaks[peaks$Gene.Name %in% genes_cluster$gene,]"
-"0","write.csv(peaks_cluster,paste0(""Peaks_cluster"",cluster,"".csv""))"

@@ -1,6 +1,0 @@
-"0","d10x.data <- sapply(ids, function(id){"
-"0","        d10x <- Read10X(file.path(dir, id,""filtered_feature_bc_matrix"")) #read in each matrix"
-"0","        colnames(d10x) <- paste(sapply(strsplit(colnames(d10x),split=""-""),'[[',1L),id,sep=""-"") "
-"0","        d10x"
-"0","})"
-"0",""
