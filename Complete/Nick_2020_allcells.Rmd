@@ -125,12 +125,13 @@ sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = regress)
 Alternative: SCTransform (great for smaller datasets)
 ```{r}
 add.genes = c("ptprc","lgmn","hexb","mpeg1.1","apoeb")
-regress = c("nFeature_RNA")
+regress = c("nFeature_RNA","percent.mito")
 
 sobject <- SCTransform(sobject, vars.to.regress = regress, verbose = FALSE,variable.features.n = 6000,conserve.memory = T)
 
 
 top10 <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
+top10 <- head(VariableFeatures(sobject),10)
 plot1 = VariableFeaturePlot(sobject)
 LabelPoints(plot=plot1, points = top10, repel = F, xnudge = 0.1, ynudge = 0.5)
 ```
@@ -233,7 +234,7 @@ dev.off()
 
 Block to print multiple graphs: 
 ```{r}
-name = "all"
+name = "juv_mpeg"
 genes = c("marco","mpeg1.1","apoeb","p2ry12","ptprc","hexb","irf8","spi1b","spi1a","csf1ra","csf1rb","slc7a7","c1qa","c1qb","c1qc","cd74a","cd74b","pcna","mki67","siglec15l")
 features = c("percent.mito","percent.ribo","nCount_RNA","nFeature_RNA")
 groups = c("age","sample_description","seurat_clusters","celltype","celltypeclusters")
@@ -243,8 +244,14 @@ genes = genes[genes %in% rownames(GetAssayData(sobject,slot = "data"))]
 FeaturePlot(sobject,genes[1:5])
 FeaturePlot(sobject,genes[6:9])
 
+genes = c("mcl1b")
 #feature plots
-for(feature in c(genes,features)){
+
+for(feature in genes){
+  PrintSeuratGraph(namecard = name,graphtype = "feature",feature = feature)
+}
+
+for(feature in features){
   PrintSeuratGraph(namecard = name,graphtype = "feature",feature = feature)
 }
 
@@ -345,17 +352,17 @@ markers_all <- FindAllMarkers(
     features = rownames(sobject),
     test.use = "MAST",
     only.pos = FALSE, 
-    min.pct = 0.25, #gene must be present in 25% of the cells in the cluster
+    min.pct = 0.05, #gene must be present in 5% of the cells in the cluster
     logfc.threshold = 0.20
 )
 
-write.csv(markers_all,file = file.path(dir,"all_markers_mpeg.csv"))
+#write.csv(markers_all,file = file.path(dir,"all_markers_mpeg.csv"))
 ```
 
 
 ```{r}
 #set your p-value threshold
-pcut = 1e-25
+pcut = 1e-5
 genespercluster = 5
 
 #select positive markers for heatmap
@@ -363,7 +370,7 @@ markers_all = markers_all[markers_all$avg_logFC>0.2,]
 
 #select genes that pass a p-value threshold
 markers_all = markers_all[markers_all$p_val_adj<pcut,]
-#markers_all_single <- markers_all[markers_all$gene %in% names(table(markers_all$gene))[table(markers_all$gene) == 1],] #markers that define a single cluster
+markers_all <- markers_all[markers_all$gene %in% names(table(markers_all$gene))[table(markers_all$gene) == 1],] #markers that define a single cluster
 
 topgenes <- markers_all %>% group_by(cluster) %>% top_n(genespercluster, avg_logFC)
 

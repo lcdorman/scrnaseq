@@ -80,34 +80,36 @@ geneExpr = GetAssayData(sobject,slot = "data")
 var.genes = VariableFeatures(sobject)
 all.genes<-rownames(sobject)
 
-geneExpr = as.matrix(geneExpr[rownames(geneExpr)%in% var.genes,])
-geneExpr = geneExpr[rowSums(geneExpr)>0,]
-geneCounts = as.matrix(geneCounts[rownames(geneCounts)%in% var.genes,])
-geneCounts = geneCounts[rowSums(geneCounts)>0,]
+geneExpr = as.matrix(geneExpr[rownames(geneExpr)%in% all.genes,])
+geneExpr = geneExpr[rowSums(geneExpr)>100,]
+geneCounts = as.matrix(geneCounts[rownames(geneCounts)%in% all.genes,])
+geneCounts = geneCounts[rowSums(geneCounts)>1000,]
+
 
 info = sobject@meta.data
-form <- ~ percent.mito + (1|sex) + (1|age) + (1|condition)
+form <- ~ percent.mito + percent.ribo
+#form <- ~ percent.mito + (1|sex) + (1|age) + (1|condition)
 
-varPart <- fitExtractVarPartModel(geneExpr, form, info )
+varPart <- fitExtractVarPartModel(geneCounts, form, info )
 # sort variables (i.e. columns) by median fraction of variance explained
 vp <- sortCols(varPart )
 
 #order on sex
-vs = varPart[order(varPart$sex,decreasing = T),]
+vs = varPart[order(varPart$percent.ribo,decreasing = T),]
 vm = varPart[order(varPart$percent.mito,decreasing = T),]
 
 # Bar plot of variance fractions for the first 10 genes
-plotPercentBars( vm[1:10,] )
+plotPercentBars( vm[1:50,] )
 plotPercentBars( vs[1:20,] )
 
 # violin plot of contribution of each variable to total variance
 plotVarPart( vm )
-plotVarPart( vs )
 
-setEPS()
-postscript("~/Desktop/sobjectvariancesex.eps")
-plotPercentBars( vs[1:20,] )
-dev.off()
+
+#setEPS()
+#postscript("~/Desktop/sobjectvariancesex.eps")
+#plotPercentBars( vs[1:20,] )
+#dev.off()
 ```
 
 Skip this for zebrafish for now

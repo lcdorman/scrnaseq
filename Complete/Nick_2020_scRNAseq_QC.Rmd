@@ -31,7 +31,7 @@ library(magrittr)
 getwd()
 
 #Specify where your matrix files are
-dir= "/Users/whippoorwill/Desktop/Sequencing/Nick/2_2020/NickData/CellRanger"
+dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/Data/CellRanger"
 
 
 ```
@@ -70,7 +70,7 @@ experiment.data<-do.call("cbind",d10x.data)
 All of the following fields can be altered. I am not filtering by cells or features; the "names.field" and "names.delim" determines the input identity for each cell. 
 
 ```{r}
-project<-"Nick" #Name this anything you want
+project<-"Leah" #Name this anything you want
 colnames(experiment.data)[1:5] #look at cell name structure
 
 sobject <- CreateSeuratObject(
@@ -87,7 +87,7 @@ Calculate mitochondrial content, add as metadata to each cell (column). Percent 
 
 ```{r}
 sobject <- PercentageFeatureSet(sobject, pattern = "^mt-", col.name = "percent.mito")
-sobject <- PercentageFeatureSet(sobject, pattern = "^rp", col.name = "percent.ribo")
+sobject <- PercentageFeatureSet(sobject, pattern = "^Rp", col.name = "percent.ribo")
 ```
 
 Extract the sampleIDs which are stored in "orig.ident". The numbers are numbers of cells (columns). Orig.ident is defined by the file from which the data was isolated. 
@@ -150,9 +150,9 @@ QC - decide on final filtering parameters, look for clear outliers/differences b
 
 Function to make an annotated violin plot
 ```{r}
-anno_vln = function(seurat_object = sobject, metric = "nCount_RNA", group = "sample_description"){
+anno_vln = function(seurat_object = sobject, metric = "nCount_RNA", group = "orig.ident"){
   #specify number of categories
-  n = length(levels(seurat_object@meta.data[,group.by]))
+  n = length(levels(seurat_object@meta.data[,group]))
 
   #make a violin plot
   a = VlnPlot(seurat_object,metric,group.by = group,pt.size = 0,log = F,cols = rep("grey",n))
