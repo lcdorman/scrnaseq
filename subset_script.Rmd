@@ -13,6 +13,34 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
+```{r}
+#install.packages("BiocManager")
+
+#BiocManager::install("Seurat")
+#BiocManager::install("ggplot2")
+#BiocManager::install("sctransform")
+
+library(Seurat)
+library(ggplot2)
+library(sctransform)
+library(dplyr)
+library(ape)
+library(variancePartition)
+library(cowplot)
+library(Matrix)
+library(magrittr)
+
+#find out where you are
+getwd()
+
+#Specify where your matrix files are
+dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/"
+```
+
+```{r}
+filename = "sobject.RData"
+load(file = file.path(dir,"Data/Seurat",filename))
+```
 
 
 Subset the data to include only your celltypes of interest: 
@@ -29,6 +57,7 @@ table(sobject$celltype,sobject$seurat_clusters)
 Whenever you remove cells from a seurat object, you have to re-normalize, scale, and calculate pca/umap/clustering. This is copied out from above. I'm keeping the same add.genes but of course you could change them here. 
 
 ```{r}
+sct = FALSE
 add.genes = c("ptprc","lgmn","hexb","mpeg1.1","apoeb")
 regress = c("nFeature_RNA")
 
@@ -47,7 +76,6 @@ if (!sct){
 
   sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = regress)
 }
-
 
 top10 <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
 plot1 = VariableFeaturePlot(sobject)
@@ -70,8 +98,6 @@ sobject<-FindNeighbors(sobject,dims=pcs,verbose=F)
 
 res = 0.3 #set this to anything
 sobject<-FindClusters(sobject,verbose=F,resolution = res) 
-
-
 ```
 
 Look at resulting clustering to evaluate
@@ -98,10 +124,6 @@ plot.phylo(tree, use.edge.length = T, direction = "rightwards")
 save(sobject,file = file.path(dir,paste0(Project(sobject),"_",keep,"only_umap.RData")))
 ```
 
-
-
-
-
 Heatmap for clusters within this celltype
 ```{r}
 Idents(sobject) = "seurat_clusters"
@@ -111,10 +133,10 @@ markers_all <- FindAllMarkers(
     test.use = "MAST",
     only.pos = FALSE, 
     min.pct = 0.05, #gene must be present in 5% of the cells in the cluster
-    logfc.threshold = 0.20
+    logfc.threshold = 0.0
 )
 
-#write.csv(markers_all,file = file.path(dir,"all_markers_mpeg.csv"))
+write.csv(markers_all,file = file.path(dir,paste0(keep,"_all_markers.csv")))
 ```
 
 
@@ -160,7 +182,7 @@ DoHeatmap(
 
 
 ```{r}
-save(sobject,file = file.path(dir,paste0(keep,"_only_sctransform.RData")))
+save(sobject,file = file.path(dir,paste0(keep,"_only.RData")))
 ```
 
 As this is a checkpoint, you can load in the data again if necessary: 
@@ -258,7 +280,7 @@ plot.phylo(tree, use.edge.length = T, direction = "rightwards")
 dev.off()
 ```
 
-
+Conduct differential expression analysis on the new metadata
 ```{r}
 Idents(sobject) = "celltype"
 markers_all = FindAllMarkers(
@@ -319,478 +341,3 @@ DoHeatmap(
 )
 ```
 
-Other differential expression methods: 
-
-1. Compare each cluster to one "baseline" cluster
-```{r}
-base = '0'                 #default cluster
-column = "seurat_clusters" #can pick any metadata column
-
-Idents(sobject) = column
-clusters = levels(sobject@meta.data[,column]) 
-
-for (cluster in clusters){
-  markers_all <- FindMarkers(
-    object = sobject,
-    ident.1 = cluster,
-    ident.2 = base,
-    only.pos = FALSE, 
-    min.pct = 0.10, #gene must be present in 10% of the cells in the cluster
-    logfc.threshold = 0,
-    test.use = "MAST")
-  dim(markers_all)
-  head(markers_all)
-  write.csv(markers_all,file = file.path(dir,paste0("markers",cluster,"_vs_",base,".csv")))
-}
-```
-
-Or you can run "bulk-seq" like analyses based on your original sample IDs: 
-
-```{r}
-#can pick any metadata column
-column = "seurat_clusters"
-#default cluster
-cluster1 = '0'    
-#cluster of interest
-cluster2 = "2" 
-
-
-Idents(sobject) = column
-markers = FindMarkers(sobject,
-                      ident.1=cluster1,
-                      ident.2 = cluster2,
-                      only.pos=F,
-                      logfc.threshold = 0.0,
-                      min.pct = 0.1,
-                      test.use = "MAST")
-write.csv(markers,file.path(dir,paste0("markers_",cluster1,"_vs_",cluster2,".csv")))
-```
-
-You can make a heatmap only including certain genes/cells: 
-
-```{r}
-#read in a de gene file
-markers = read.csv("singlemarkersMG_0501.csv",stringsAsFactors = F)
-
-#establish cutoffs
-pval = 1e-8 #max p-value for significance
-lfc = 0.2 #minimum log fold change
-minpct = 0.3 #if you want to subset by percent cells in that cluster expressing the gene
-maxpct = 0.7
-single = F #should each gene be a marker of a single cluster only
-ngenes = 3 #how many genes should be in the heatmap per cluster
-ncells = 500 #max # of cells per heatmap column
-column = "finalclusters" #division you care about
-
-markers = markers[markers$p_val_adj<pcut,]
-markers = markers[markers$avg_logFC > lfc,] #pick only positives, or restrict by min/max pct expression using pct1/2
-
-#If you want, select markers that define a single cluster
-if (single){markers <- markers[markers$gene %in% names(table(markers$gene))[table(markers$gene) == 1],] }
-
-table(markers$cluster)
-
-topgenes <- markers %>% group_by(cluster) %>% top_n(ngenes, avg_logFC)
-topgenes = topgenes[order(topgenes$cluster),]
-topgenes$gene
-
-#Subset each cluster to ncells
-cellnames = sobject@meta.data[,column]
-names(cellnames) = colnames(sobject)
-clusters = levels(cellnames)
-newcellnames = NULL
-for (cluster in clusters){
-  n = length(cellnames[cellnames == cluster])
-  if (n > ncells){n = ncells}
-  newcluster = sample(cellnames[cellnames == cluster],n, replace = F)
-  newcellnames = c(newcellnames,newcluster)
-}
-
-#check
-table(newcellnames)
-
-#Make heatmap
-setEPS()
-postscript(file.path(dir,paste0(column,"_",pval,"_ncells",ncells,"heatmap.eps")))
-DoHeatmap(
-    object = sobject, 
-    features = c(topgenes$gene),
-    cells = names(newcellnames),
-    group.by = column,
-    size = 5,
-    label = T,
-    draw.lines = T
-)
-
-dev.off()
-```
-
-
-You can also make plots with only subsets of cells: Best for making umap plots where both conditions/individuals have equal representation. 
-```{r}
-#first check how many cells are in each group so you don't pick a number more than the min
-column = "sample_description"
-ncells = 2000
-genes = c("")
-features = c("")
-categories = c("")
-name = "equalcells"
-dir = ""
-
-table(sobject$sample_description)
-cellnames = sobject@meta.data[,column]
-names(cellnames) = colnames(sobject)
-groups = levels(cellnames)
-
-newcellnames = NULL
-for (group in groups){
-  cells = sample((cellnames)[cellnames == group],ncells)
-  newcellnames = c(newcellnames,cells)
-}
-
-#feature plots
-for(feature in c(genes,features)){
-  PrintSeuratGraph(namecard = name,graphtype = "feature",feature = feature,cellnames = newcellnames)
-}
-
-#split feature plots by individual
-for(feature in c(features)){
-  PrintSeuratGraph(namecard = paste0(name,"_split"),graphtype = "feature",feature = feature,split = "sample_description",cellnames = newcellnames)
-}
-
-#dim plots for clustering
-for(group in categories){
-  PrintSeuratGraph(namecard = name,graphtype = "dim",group = group, feature = group,cellnames = newcellnames)
-}
-
-#violin plots
-for(feature in c(genes,features)){
-  PrintSeuratGraph(namecard = name,graphtype = "violin",feature = feature,group = "seurat_clusters",cellnames = newcellnames)
-}
-```
-
-
-You can save umap and pc embeddings to load into other programs like Loupe and anything in Python like scvelo (velocity)
-```{r}
-#Edit name only if one project has multiple embeddings
-name = Project(sobject)
-#Save umap embeddings
-umap = sobject@reductions$umap@cell.embeddings
-umap$Cellname = rownames(umap)
-write.csv(umap,file = file.path(dir,paste0(name,"_umap_embed.csv"),row.names = F))
-
-#save pcs
-pc = sobject@reductions$pca@cell.embeddings
-pc$Cellname = rownames(pc)
-write.csv(pc,file = file.path(dir,paste0(name,"_pc_embed.csv"),row.names = F))
-
-#save metadata
-meta = sobject@meta.data
-meta$gene = rownames(meta)
-write.csv(pc,file = file.path(dir,paste0(name,"_metadata.csv"),row.names = F))
-```
-
-For PanoView (in Python, a way to mathematically validate # of clusters found)
-```{r}
-annotation = sobject$sample_description #or any column
-
-name = Project(sobject)
-x = as.matrix(GetAssayData(sobject,slot = "counts"))
-x = x[rownames(x) %in% VariableFeatures(sobject),]
-
-write.csv(x,file = file.path(dir,paste0(name,"_counts.csv")))
-write.csv(annotation,file = file.path(dir,paste0(name,"_annotation.csv")))
-```
-
-You can add annotations from the annotationDB database: 
-```{r}
-organism = "mouse"
-
-if (organism %in% c("Mouse","mouse","mus musculus","Mus musculus","Mm")){db = org.Mm.eg.db}
-if (organism %in% c("Human","human","homo sapiens","Homo sapiens","Hs")){db = org.Hs.eg.db}
-if (organism %in% c("Zebrafish","zebrafish","danio rerio","Danio rerio","Dr")){db = org.Dr.eg.db}
-
-fc = read.csv("../Spreadsheets/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F) #any spreadsheet with gene symbols or other identifiers
-ids=fc$gene 
-fromKey="SYMBOL" #must match the ids - could also be ensembl ID
-toKey=c("GENENAME","ENSEMBL","UNIPROT") #whatever annotation you want to add - find with keytypes(db)
-selRes<-AnnotationDbi::select(db,keys=ids,keytype=fromKey,columns=c(fromKey,toKey))
-
-x=selRes[match(ids,selRes[,1]),1:(length(toKey)+1)]
-identical(x$SYMBOL,fc$gene)
-fc$GeneName = x$GENENAME
-fc$Ensembl = x$ENSEMBL
-fc$Uniprot = x$UNIPROT
-```
-
-
-********************
-Volcano Plot: 
-```{r}
-de = read.csv("../Spreadsheets/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F)
-colnames(fc)[8] = "Gene"
-```
-
-Set your parameters
-```{r}
-#Minimum fold change (i.e. 1.15 = 15% increase)
-minfc = 1.15
-
-#Max adj. p value
-alpha = 1e-25
-
-#Ccluster selected
-category = "4"
-
-#Genes to highlight
-ngenes = 20
-```
-
-```{r}
-colnames(de)[8] = "Gene"
-newlist = list()
-clusters = levels(as.factor(de$cluster))
-
-#Split by cluster
-i = 1
-for (cluster in clusters){
-  newlist[[cluster]] = de[de$cluster == cluster,]
-  i = i+1
-}
-
-#select a single cluster
-fc = newlist[[category]]
-fc = fc[!is.na(fc$avg_logFC),]
-colorkeysdown = fc$Gene[fc$avg_logFC < -log2(minfc) & fc$p_val_adj < alpha]
-colorkeysup = fc$Gene[fc$avg_logFC > log2(minfc) & fc$p_val_adj < alpha]
-
-#Either highlight specific genes or pick the top genes in colorkeysup/down
-top = fc[fc$p_val_adj<alpha,]
-top = top[order(top$avg_logFC),"Gene"]
-highlight = c(head(top,ngenes),tail(top,ngenes))
-
-allcolors = rep("darkgrey",length(fc$Gene))
-names(allcolors) = fc$Gene
-
-allcolors[names(allcolors) %in% colorkeysdown] = "blue"
-allcolors[names(allcolors) %in% colorkeysup]= "red"
-allcolors[names(allcolors) %in% highlight]= "yellow"
-
-names(allcolors)[allcolors == "yellow"] = "labelled"
-names(allcolors)[allcolors == "red"] = "u"
-names(allcolors)[allcolors == "darkgrey"] = "-"
-names(allcolors)[allcolors == "blue"] = "d"
-```
-
-Save/Make the plot
-  
-```{r}
-setEPS()
-postscript(file.path(dir,paste0("plots_Volcano_",category,".eps")))
-EnhancedVolcano(fc,
-                lab = fc$Gene,
-                x = 'avg_logFC',
-                y = 'p_val_adj',
-                xlim = c(-3, 3),
-                title = category,
-                subtitle = "",
-                drawConnectors = F,
-                legendPosition = 'right',
-                legendVisible = F,
-                pCutoff = alpha,
-                FCcutoff = log2(minfc),
-                selectLab = highlight,
-                transcriptPointSize = 1.5,
-                transcriptLabSize = 2.0,
-                col=c('black', 'black', 'black', 'red3'),
-                colCustom = allcolors,
-                gridlines.major = F,
-                gridlines.minor = F,
-                colAlpha = 1)
-dev.off()
-
-EnhancedVolcano(fc,
-                lab = fc$Gene,
-                x = 'avg_logFC',
-                y = 'p_val_adj',
-                xlim = c(-3, 3),
-                title = category,
-                subtitle = "",
-                drawConnectors = F,
-                legendPosition = 'right',
-                legendVisible = F,
-                pCutoff = alpha,
-                FCcutoff = log2(minfc),
-                selectLab = highlight,
-                transcriptPointSize = 1.5,
-                transcriptLabSize = 2.0,
-                col=c('black', 'black', 'black', 'red3'),
-                colCustom = allcolors,
-                gridlines.major = F,
-                gridlines.minor = F,
-                colAlpha = 1)
-
-```
-
-You can find what phase of the cell cycle each cell is in: 
-
-Cell cycle regression specifically for mouse genes right now - can adjust slightly for human/zebrafish data by changing the capitalization of the spreadsheet
-
-```{r}
-cc.genes <- readLines(con = "../Spreadsheets/regev_lab_cell_cycle_genes.txt")
-genesofinterest = c("Pcna","Top2a","Mcm6","Mki67")
-if (organism %in% c("Mouse","mouse","mus musculus","Mus musculus","Mm")){org = "M"}
-if (organism %in% c("Human","human","homo sapiens","Homo sapiens","Hs")){org = "H"}
-if (organism %in% c("Zebrafish","zebrafish","danio rerio","Danio rerio","Dr")){org = "Z"}
-
-#for zebrafish and mice, change gene names to lowercase
-if (org %in% c("Z","M")){cc.genes<-tolower(cc.genes)}
-
-#for mice, capitalize the first letter of each gene
-if (org == "M"){
-  cc.genes<-unname(sapply(cc.genes,function(x){
-    x<-paste0(toupper(substr(x,start = 1,stop = 1)),substring(x,first=2))
-    }))
-}
-
-#assign each gene to "S" phase or "G2M" phase
-s.genes <- cc.genes[1:43]
-g2m.genes <- cc.genes[44:97]
-
-#score each cell by gene expression on this subset of genes
-sobject <- CellCycleScoring(object = sobject, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
-
-# view cell cycle scores and phase assignments
-head(x = sobject@meta.data)
-RidgePlot(object = sobject, features = genesofinterest)
-FeaturePlot(sobject,"S.Score")
-FeaturePlot(sobject,"G2M.Score")
-
-#save phase plot
-setEPS()
-postscript(file.path(dir,"phasechart.eps"))
-DimPlot(sobject,group.by = "Phase")
-dev.off()
-
-#save seurat object with cell cycle scoring
-save(sobject,file = file.path(dir,paste0(Project(sobject),".RData")))
-```
-
-
-You can regress out the phase genes
-```{r}
-add.genes = c('Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1','Hexb')
-remove.genes = c('Xist', 'Gm47283', 'Ddx3y', 'Eif2s3y', 'Tsix', 'Uty', 'AC149090.1PC_ 1')
-regress = c("S.Score","G2M.Score","nCount_RNA","percent.mito")
-columns = c("sample_description","seurat_clusters","finalclusters","condition","age","Phase")
-
-#run PCA on only the cell cycle genes
-sobject2 <- RunPCA(object = sobject, pc.genes = c(s.genes, g2m.genes), do.print = FALSE, maxit=10000)
-
-#cell cycle only
-PCAPlot(object = sobject2)
-
-#original
-PCAPlot(object = sobject)
-
-#regress out cell cycle variables
-var.genes = c(VariableFeatures(sobject2),add.genes)
-var.genes = var.genes[!var.genes %in% remove.genes]
-
-VariableFeatures(sobject2) = var.genes
-
-sobject2 <- ScaleData(object = sobject2, features = var.genes, vars.to.regress = regress)
-
-# Now, a PCA on the variable genes no longer returns components associated
-# with cell cycle
-sobject2 <- RunPCA(object = sobject2, features = var.genes, genes.print = 10)
-PCAPlot(object = sobject2)
-
-#remake umap with new calculations without cell cycle
-sobject2@reductions$UMAP<-NULL
-sobject2<-RunUMAP(sobject2,reduction = "pca",dims = 1:30, verbose = F)
-sobject2<-FindNeighbors(sobject2,dims=1:30,verbose=F)
-set.seed(1)
-sobject2<-FindClusters(sobject2,verbose=F,resolution = 0.5)
-
-#make plots without cell cycle
-for (column in columns){
-  print(DimPlot(object = sobject2, group.by=column, pt.size=0.5,label = T))
-}
-```
-
-
-Barplot
-
-```{r}
-r = table(droplevels(sobject$finalclusters),sobject$fulldescription)
-x = grep("P7",colnames(r))
-r = r[,x]
-#normalize to 1,000 cells per sample
-Control_female = (r[,1]/colSums(r)[1])*2000
-Deprived_female = (r[,3]/colSums(r)[3])*2000
-
-Control_male = (r[,2]/colSums(r)[2])*2000
-Deprived_male = (r[,4]/colSums(r)[4])*2000
-
-rf = cbind(Control_female,Deprived_female)
-rf = cbind(rf,total = rowSums(rf))
-
-rm = cbind(Control_male,Deprived_male)
-rm = cbind(rm,total = rowSums(rm))
-
-rc = cbind(Control_P5,Control_P7)
-rc = cbind(rc,total = rowSums(rc))
-#show a barplot with percent cells per cluster
-
-cols5 = c("lightblue","pink")
-cols7 = c("darkblue","red3")
-colsc = c("lightblue","darkblue")
-r1 = rm
-for (row in 1:nrow(r1)){
-  r1[row,] = r1[row,]/r1[row,ncol(r1)]*100
-  r1
-}
-r1 = r1[,1:2]
-relconpct = t(r1)
-cols = cols7
-setEPS()
-postscript("~/Desktop/3H_control.eps")
-barplot(relconpct, main="Cluster composition by percent of celltype",
-        xlab="Cluster", ylab = "% of cluster", ylim = c(0,100), col=cols,axisnames = T,
-        width = .2,xlim = c(0,5),legend = rownames(relconpct), space = 0.6,cex.names = 0.8,axis.lty = 1)
-dev.off()
-```
-
- Contingency tables for barplots. Note that this makes more sense if done with only 2 samples, as only one statistic will be calculated per cluster. 
- 
-```{r}
-clustercolumn = "seurat_clusters"
-samplecolumn = "age"
-
-
-all = table(sobject[[clustercolumn]][,1],sobject[[samplecolumn]][,1])
-
-total = colSums(all)
-clusters = rownames(all)
-test = list()
-chi = chisq.test(all)
-
-
-for (cluster in clusters){
-  x = rbind(all[cluster,],total-all[cluster,])
-  rownames(x) = c(cluster,"total")
-  chi = chisq.test(x)
-  f = sqrt(chi$statistic/sum(x))
-  test[[cluster]] = chi
-  test[[cluster]]$f = f
-}
-
-#print out the p-value and cramer's v (closer to 1 = higher effect size) for each cluster
-for (cluster in clusters){
-  print(cluster)
-  print(test[[cluster]]$p.value) #p-value
-  print(sqrt(test[[cluster]]$statistic/sum(all[cluster,]))) #normalized by the number of cells in the cluster = cramer's v
-}
-```
- 
