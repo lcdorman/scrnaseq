@@ -10,8 +10,10 @@ library(rhdf5)
 
 #Set "dir" to the folder in which your samples can be found. 
 dir<-"~/Desktop/RNAseq practice"
-setwd(dir) #actually not necessary, you can set this to anything as long as R can still navigate to dir
-
+contrast=c("condition","1_Pos","2_Neg")
+alpha = 0.05
+minlfc = 1
+name = "practice"
 
 ##tximport
 ##"Samples.txt" must
@@ -69,7 +71,7 @@ dds<-dds[rowSums(counts(dds))>1,]
 #Differential Expression
 ddsDE<-DESeq(dds)
 
-resDE<-results(ddsDE,cooksCutoff=FALSE,contrast=c("condition","1_Pos","2_Neg"))
+resDE<-results(ddsDE,cooksCutoff=FALSE,contrast=contrast)
 ##resDE<-results(ddsDE,cooksCutoff=FALSE,addMLE=TRUE,contrast=c("condition","treated","control"))
 ##cooksCutoff= T means you are removing p-values from extreme count outliers (default)
 
@@ -77,7 +79,7 @@ resDE<-results(ddsDE,cooksCutoff=FALSE,contrast=c("condition","1_Pos","2_Neg"))
 resOrdered<-resDE[order(resDE$padj),]
 ##number of results that are significant
 
-sig_sum<-sum(resDE$padj<0.05,na.rm=TRUE)
+sig_sum<-sum(resDE$padj<alpha,na.rm=TRUE)
 #remove all "na" values and replace with 1
 remove_na<-function(dataset){
         for (i in 1:length(dataset)){
@@ -86,10 +88,8 @@ remove_na<-function(dataset){
         dataset
 }
 resDE$padj<-remove_na(res2DE$padj)
-#set alpha,beta to the minimum adj p-value, log2foldchange you care about
-beta<-1
-alpha<-0.05
-sig<-subset(resDE,log2FoldChange>beta)
+
+sig<-subset(resDE,log2FoldChange>minlfc)
 sig<-subset(sig,padj<alpha)
 
 ##to add a column with gene names to the final spreadsheet
@@ -112,5 +112,5 @@ x=selRes[match(ids,selRes[,1]),2]
 DE=data.frame(Ensembl_ID=rownames(sig),Gene_ID=x,sig)
 allDE=data.frame(Ensembl_ID=rownames(resDE),Gene_ID=x,resDE)
 ##write a table
-write.csv(DE,file.path(dir,"DE.csv"),row.names=T,col.names=T)
-write.csv(allDE,file.path(dir,"allDE.csv"),row.names=T,col.names=T)
+write.csv(DE,file.path(dir,paste0(name,"_DE.csv")),row.names=T,col.names=T)
+write.csv(allDE,file.path(dir,paste0(name,"_allDE.csv")),row.names=T,col.names=T)
