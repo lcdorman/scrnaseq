@@ -968,11 +968,15 @@ barplot(relconpct, main="Cluster composition by percent of celltype",
 dev.off()
 ```
 
- contingency tables for barplots
+ Contingency tables for barplots. Note that this makes more sense if done with only 2 samples, as only one statistic will be calculated per cluster. 
  
 ```{r}
+clustercolumn = "seurat_clusters"
+samplecolumn = "age"
 
-all = table(sobject$SCT_snn_res.0.3,sobject$sample_description)
+
+all = table(sobject[[clustercolumn]][,1],sobject[[samplecolumn]][,1])
+
 total = colSums(all)
 clusters = rownames(all)
 test = list()
@@ -988,35 +992,12 @@ for (cluster in clusters){
   test[[cluster]]$f = f
 }
 
-#for opcs_2: 0.19
-v = sqrt(test$`2`$statistic/sum(all["2",]))
-#for microglia_0: 0.11
-v = sqrt(test$`0`$statistic/sum(all["0",]))
-
-#for astro_1 = 0.5
-v = sqrt(test$astrocytes_1$statistic/sum(all["astrocytes_1",]))
-v
-#for astro_5 = 0.8
-v = sqrt(test$astrocytes_5$statistic/sum(all["astrocytes_5",]))
-v
-
-#for opcs_9 = 0.3
-v = sqrt(test$opcs_9$statistic/sum(all["opcs_9",]))
-v
-
-#for microglia_8 = 0.27
-v = sqrt(test$microglia_8$statistic/sum(all["microglia_8",]))
-v
-
-#for microglia_6 = 1.13
-v = sqrt(test$microglia_6$statistic/sum(all["microglia_6",]))
-v
-
-#for microglia_0 = 0.19
-v = sqrt(test$microglia_0$statistic/sum(all["microglia_0",]))
-v
-
-
+#print out the p-value and cramer's v (closer to 1 = higher effect size) for each cluster
+for (cluster in clusters){
+  print(cluster)
+  print(test[[cluster]]$p.value) #p-value
+  print(sqrt(test[[cluster]]$statistic/sum(all[cluster,]))) #normalized by the number of cells in the cluster = cramer's v
+}
 ```
  
 
