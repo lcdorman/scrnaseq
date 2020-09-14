@@ -25,6 +25,9 @@ library(ape)
 library(variancePartition)
 library(cowplot)
 library(Matrix)
+library(org.Mm.eg.db)
+library(org.Hs.eg.db)
+library(org.Dr.eg.db)
 
 #find out where you are
 getwd()
@@ -34,7 +37,6 @@ dir= "/Users/whippoorwill/Desktop/Sequencing/Nick/2_2020"
 ```
 Function to print multiple graphs: 
 ```{r}
-dir = "~/Desktop/QC"
 PrintSeuratGraph = function(namecard = "a",seurat_object = sobject,graphtype = "feature",feature = NULL,group = NULL,split=NULL,cellnames=NULL){
   if (!is.null(cellnames)){
     Idents(seurat_object) = cellnames[1]
@@ -53,7 +55,7 @@ PrintSeuratGraph = function(namecard = "a",seurat_object = sobject,graphtype = "
   name = paste0(feature,"_",graphtype,namecard,".eps")
   graph
   setEPS()
-  postscript(file.path(dir,name))
+  postscript(file.path(dir,"plots",name))
   print(graph)
   dev.off()
 }
@@ -101,39 +103,46 @@ Include any genes that may not vary a lot but are important for downstream appli
 ```{r}
 add.genes = c('ptprc','lgmn','hexb','apoeb','mpeg1.1')
 regress = c("nFeature_RNA")
+sct = FALSE
 ```
 
 The following is the standard method of normalization and scaling. Interchangeable with the next chunk. 
 ```{r}
-sobject <- NormalizeData(sobject,normalization.method = "LogNormalize", scale.factor = 10000)
+if (!sct){
+  sobject <- NormalizeData(sobject,normalization.method = "LogNormalize", scale.factor = 10000)
 
-sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = 10000)
-all.genes<-rownames(sobject)
-var.genes = VariableFeatures(sobject)
+  sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = 10000)
+  all.genes<-rownames(sobject)
+  var.genes = VariableFeatures(sobject)
 
-labels <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
-plot1 = VariableFeaturePlot(sobject)
-LabelPoints(plot=plot1, points = labels, repel = F, xnudge = 0.1, ynudge = 0.5)
+  labels <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
+  plot1 = VariableFeaturePlot(sobject)
+  LabelPoints(plot=plot1, points = labels, repel = F, xnudge = 0.1, ynudge = 0.5)
 
-add.genes = add.genes[!add.genes %in% var.genes]
-any(add.genes %in% var.genes)
-scalegenes = c(var.genes,add.genes)
+  add.genes = add.genes[!add.genes %in% var.genes]
+  any(add.genes %in% var.genes)
+  scalegenes = c(var.genes,add.genes)
 
-sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = regress)
+  sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = regress)
+}
+
 ```
 
 Alternative: SCTransform (great for smaller datasets)
 ```{r}
-add.genes = c("ptprc","lgmn","hexb","mpeg1.1","apoeb")
-regress = c("nFeature_RNA","percent.mito")
+if (sct){
+  add.genes = c("ptprc","lgmn","hexb","mpeg1.1","apoeb")
+  regress = c("nFeature_RNA","percent.mito")
 
-sobject <- SCTransform(sobject, vars.to.regress = regress, verbose = FALSE,variable.features.n = 6000,conserve.memory = T)
+  sobject <- SCTransform(sobject, vars.to.regress = regress, verbose = FALSE,variable.features.n = 6000,conserve.memory = T)
 
 
-top10 <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
-top10 <- head(VariableFeatures(sobject),10)
-plot1 = VariableFeaturePlot(sobject)
-LabelPoints(plot=plot1, points = top10, repel = F, xnudge = 0.1, ynudge = 0.5)
+  top10 <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
+  top10 <- head(VariableFeatures(sobject),10)
+  plot1 = VariableFeaturePlot(sobject)
+  LabelPoints(plot=plot1, points = top10, repel = F, xnudge = 0.1, ynudge = 0.5)
+}
+
 ```
 
 Run PCA analysis
@@ -152,7 +161,6 @@ sobject<-FindNeighbors(sobject,dims=pcs,verbose=F)
 
 res = 0.8 #set this to anything
 sobject<-FindClusters(sobject,verbose=F,resolution = res) 
-save(sobject,file = file.path(dir,"sobject_filtered_umap.RData"))
 ```
 
 Plot important objects; check parameters before moving forward, evaluate QC, clustering
@@ -218,7 +226,7 @@ VlnPlot(sobject,markergene,group.by = "celltype",pt.size = 0.01)
 sobject$celltypecluster = paste0(sobject$celltype,"-",sobject$seurat_clusters)
 
 #save the unsubsetted data. This will overwrite the one you just saved because it has all the same info + celltype assigned and tree calculated. 
-save(sobject,file = file.path(dir,"sobject_filtered_umap.RData"))
+save(sobject,file = file.path(dir,paste0(Project(sobject),"_sobject_filtered_umap.RData")))
 ```
 
 Save the tree
@@ -289,7 +297,21 @@ Whenever you remove cells from a seurat object, you have to re-normalize, scale,
 add.genes = c("ptprc","lgmn","hexb","mpeg1.1","apoeb")
 regress = c("nFeature_RNA")
 
-sobject <- SCTransform(sobject, vars.to.regress = regress, verbose = FALSE,variable.features.n = 6000,conserve.memory = T)
+if (sct){sobject <- SCTransform(sobject, vars.to.regress = regress, verbose = FALSE,variable.features.n = 6000,conserve.memory = T)}
+
+if (!sct){
+  sobject <- NormalizeData(sobject,normalization.method = "LogNormalize", scale.factor = 10000)
+
+  sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = 10000)
+  all.genes<-rownames(sobject)
+  var.genes = VariableFeatures(sobject)
+
+  add.genes = add.genes[!add.genes %in% var.genes]
+  any(add.genes %in% var.genes)
+  scalegenes = c(var.genes,add.genes)
+
+  sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = regress)
+}
 
 
 top10 <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
@@ -311,10 +333,10 @@ pcs = 1:30
 sobject<-RunUMAP(sobject,reduction = "pca",dims = pcs, verbose = F)
 sobject<-FindNeighbors(sobject,dims=pcs,verbose=F)
 
-res = 0.8 #set this to anything
+res = 0.3 #set this to anything
 sobject<-FindClusters(sobject,verbose=F,resolution = res) 
 
-save(sobject,file = file.path(dir,paste0(keep,"only_umap.RData")))
+
 ```
 
 Look at resulting clustering to evaluate
@@ -338,6 +360,7 @@ Idents(sobject) = "seurat_clusters"
 sobject= BuildClusterTree(sobject,dims = 1:30)
 tree = sobject@tools$BuildClusterTree
 plot.phylo(tree, use.edge.length = T, direction = "rightwards")
+save(sobject,file = file.path(dir,paste0(Project(sobject),"_",keep,"only_umap.RData")))
 ```
 
 
@@ -709,76 +732,94 @@ for(feature in c(genes,features)){
 
 You can save umap and pc embeddings to load into other programs like Loupe and anything in Python like scvelo (velocity)
 ```{r}
+#Edit name only if one project has multiple embeddings
+name = Project(sobject)
 #Save umap embeddings
 umap = sobject@reductions$umap@cell.embeddings
 umap$Cellname = rownames(umap)
-write.csv(umap,file = file.path(dir,"umap_embed.csv",row.names = F))
+write.csv(umap,file = file.path(dir,name,"umap_embed.csv",row.names = F))
 
 #save pcs
 pc = sobject@reductions$pca@cell.embeddings
 pc$Cellname = rownames(pc)
-write.csv(pc,file = file.path(dir,"pc_embed.csv",row.names = F))
+write.csv(pc,file = file.path(dir,name,"pc_embed.csv",row.names = F))
 
 #save metadata
 meta = sobject@meta.data
 meta$gene = rownames(meta)
-write.csv(pc,file = file.path(dir,"metadata.csv",row.names = F))
+write.csv(pc,file = file.path(dir,name,"metadata.csv",row.names = F))
 ```
 
 For PanoView (in Python, a way to mathematically validate # of clusters found)
 ```{r}
-x = as.matrix(GetAssayData(sobject,slot = "counts"))
-x = x[rownames(x) %in% VariableFeatures(sobject),]
 annotation = sobject$sample_description #or any column
 
+name = Project(sobject)
+x = as.matrix(GetAssayData(sobject,slot = "counts"))
+x = x[rownames(x) %in% VariableFeatures(sobject),]
 
-write.csv(x,file = file.path(dir,"counts.csv"))
-write.csv(annotation,file = file.path(dir,"annotation.csv"))
+write.csv(x,file = file.path(dir,paste0(name,"_counts.csv")))
+write.csv(annotation,file = file.path(dir,paste0(name,"_annotation.csv")))
 ```
 
 You can add annotations from the annotationDB database: 
-
 ```{r}
-library(org.Mm.eg.db)
-fc = read.csv("") #any spreadsheet with gene symbols or other identifiers
+organism = "mouse"
+
+if (organism %in% c("Mouse","mouse","mus musculus","Mus musculus","Mm")){db = org.Mm.eg.db}
+if (organism %in% c("Human","human","homo sapiens","Homo sapiens","Hs")){db = org.Hs.eg.db}
+if (organism %in% c("Zebrafish","zebrafish","danio rerio","Danio rerio","Dr")){db = org.Dr.eg.db}
+
+fc = read.csv("../Spreadsheets/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F) #any spreadsheet with gene symbols or other identifiers
 ids=fc$gene 
 fromKey="SYMBOL" #must match the ids - could also be ensembl ID
-toKey=c("GENENAME") #whatever annotation you want to add - find with keytypes(db)
-db=org.Mm.eg.db
+toKey=c("GENENAME","ENSEMBL","UNIPROT") #whatever annotation you want to add - find with keytypes(db)
 selRes<-AnnotationDbi::select(db,keys=ids,keytype=fromKey,columns=c(fromKey,toKey))
 
-##this is really used to get particular keys of the keytype "ensembl" (or any other type)
-
-x=selRes[match(ids,selRes[,1]),1:2]
+x=selRes[match(ids,selRes[,1]),1:(length(toKey)+1)]
 identical(x$SYMBOL,fc$gene)
 fc$GeneName = x$GENENAME
-
+fc$Ensembl = x$ENSEMBL
+fc$Uniprot = x$UNIPROT
 ```
 
 
 ********************
 Volcano Plot: 
 ```{r}
-
-fc = read.csv("/Users/whippoorwill/Desktop/plots/allmarkers_vargenesMG_0215.csv",stringsAsFactors = F)
+de = read.csv("../Spreadsheets/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F)
 colnames(fc)[8] = "Gene"
 ```
 
+Set your parameters
 ```{r}
-colnames(fc)[8] = "Gene"
+#Minimum fold change (i.e. 1.15 = 15% increase)
+minfc = 1.15
+
+#Max adj. p value
+alpha = 1e-25
+
+#Ccluster selected
+category = "4"
+```
+
+```{r}
+colnames(de)[8] = "Gene"
 newlist = list()
+clusters = levels(as.factor(de$cluster))
+
 #Split by cluster
-for (i in c(0:9)){
-  newlist[[i+1]] = fc[fc$cluster == i,]
+i = 1
+for (cluster in clusters){
+  newlist[[cluster]] = de[de$cluster == cluster,]
+  i = i+1
 }
-cluster = 4
 
 #select a single cluster
-setwd("~/Desktop/plots")
-fc = newlist[[cluster+1]]
+fc = newlist[[category]]
 fc = fc[!is.na(fc$avg_logFC),]
-colorkeysdown = fc$Gene[fc$avg_logFC < -log2(1.15) & fc$p_val_adj < 10e-25]
-colorkeysup = fc$Gene[fc$avg_logFC > log2(1.15) & fc$p_val_adj < 10e-25]
+colorkeysdown = fc$Gene[fc$avg_logFC < -log2(minfc) & fc$p_val_adj < alpha]
+colorkeysup = fc$Gene[fc$avg_logFC > log2(minfc) & fc$p_val_adj < alpha]
 ```
 
 
@@ -786,12 +827,13 @@ colorkeysup = fc$Gene[fc$avg_logFC > log2(1.15) & fc$p_val_adj < 10e-25]
 ```{r}
 allcolors = rep("darkgrey",length(fc$Gene))
 names(allcolors) = fc$Gene
-a = highlightcluster3
+a = c(sample(colorkeysdown,10),sample(colorkeysup,10))
 
 allcolors[names(allcolors) %in% colorkeysdown] = "blue"
 allcolors[names(allcolors) %in% colorkeysup]= "red"
-allcolors[names(allcolors)%in% a] = "brown"
-names(allcolors)[allcolors == "brown"] = "labeled"
+allcolors[names(allcolors) %in% a]= "brown"
+
+names(allcolors)[allcolors == "brown"] = "labelled"
 names(allcolors)[allcolors == "red"] = "u"
 names(allcolors)[allcolors == "darkgrey"] = "-"
 names(allcolors)[allcolors == "blue"] = "d"
@@ -801,19 +843,19 @@ Make the plot
   
 ```{r}
 setEPS()
-postscript(paste0("~/Desktop/volcano_0505",cluster,"nolabel.eps"))
+postscript(file.path(dir,paste0("plots_Volcano_",category,".eps")))
 EnhancedVolcano(fc,
                 lab = fc$Gene,
                 x = 'avg_logFC',
                 y = 'p_val_adj',
                 xlim = c(-3, 3),
-                title = paste0("LDAVM02_",cluster),
+                title = category,
                 subtitle = "",
                 drawConnectors = F,
                 legendPosition = 'right',
                 legendVisible = F,
-                pCutoff = 10e-25,
-                FCcutoff = log2(1.15),
+                pCutoff = alpha,
+                FCcutoff = log2(minfc),
                 selectLab = a,
                 transcriptPointSize = 1.5,
                 transcriptLabSize = 2.0,
@@ -831,14 +873,14 @@ You can find what phase of the cell cycle each cell is in:
 Cell cycle regression
 
 ```{r}
-cc.genes <- readLines(con = "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/Code/regev_lab_cell_cycle_genes.txt")
+cc.genes <- readLines(con = "../Spreadsheets/regev_lab_cell_cycle_genes.txt")
 cc.genes<-tolower(cc.genes)
 cc.genes<-unname(sapply(cc.genes,function(x){x<-paste0(toupper(substr(x,1,1)),substring(x,first=2))}))
 s.genes <- cc.genes[1:43]
 g2m.genes <- cc.genes[44:97]
 
 
-mgAVM02 <- CellCycleScoring(object = mgAVM02, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
+mgAVM02 <- CellCycleScoring(object = sobject, s.features = s.genes, g2m.features = g2m.genes, set.ident = TRUE)
 
 # view cell cycle scores and phase assignments
 head(x = mgAVM02@meta.data)
@@ -848,37 +890,38 @@ FeaturePlot(mgAVM02,"S.Score")
 FeaturePlot(mgAVM02,"G2M.Score")
 
 setEPS()
-postscript("~/Desktop/phasechartP5.eps")
-DimPlot(mgAVM02,group.by = "Phase",cells = mgAVM02$age == "P5")
+postscript(file.path(dir,"phasechart.eps"))
+DimPlot(mgAVM02,group.by = "Phase")
 dev.off()
 
-save(mgAVM02,file = "~/Desktop/plots/mgAVM02.RData")
+save(mgAVM02,file = file.path(dir,paste0(Project(sobject),".RData")))
 ```
 
+
+*************
 ```{r}
-load("/Users/whippoorwill/Desktop/plots/mgAVM02.RData")
-mgAVM03 <- RunPCA(object = mgAVM02, pc.genes = c(s.genes, g2m.genes), do.print = FALSE, maxit=10000)
-PCAPlot(object = mgAVM03)
-PCAPlot(object = mgAVM02)
-var.genes = c(VariableFeatures(mgAVM03),'Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1','Hexb')
+sobject2 <- RunPCA(object = sobject, pc.genes = c(s.genes, g2m.genes), do.print = FALSE, maxit=10000)
+PCAPlot(object = sobject2)
+PCAPlot(object = sobject)
+var.genes = c(VariableFeatures(sobject2),'Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1','Hexb')
 var.genes = var.genes[!var.genes %in% c('Xist', 'Gm47283', 'Ddx3y', 'Eif2s3y', 'Tsix', 'Uty', 'AC149090.1PC_ 1')]
-VariableFeatures(mgAVM03) = var.genes
-mgAVM03 <- ScaleData(object = mgAVM03, features = var.genes, vars.to.regress = c("S.Score", "G2M.Score","nCount_RNA","percent.mito"))
+VariableFeatures(sobject2) = var.genes
+sobject2 <- ScaleData(object = sobject2, features = var.genes, vars.to.regress = c("S.Score", "G2M.Score","nCount_RNA","percent.mito"))
 
 # Now, a PCA on the variable genes no longer returns components associated
 # with cell cycle
-mgAVM03 <- RunPCA(object = mgAVM03, features = var.genes, genes.print = 10)
-PCAPlot(object = mgAVM03)
-mgAVM03@reductions$UMAP<-NULL
-mgAVM03<-RunUMAP(mgAVM03,reduction = "pca",dims = 1:30, verbose = F)
-mgAVM03<-FindNeighbors(mgAVM03,dims=1:30,verbose=F)
+sobject2 <- RunPCA(object = sobject2, features = var.genes, genes.print = 10)
+PCAPlot(object = sobject2)
+sobject2@reductions$UMAP<-NULL
+sobject2<-RunUMAP(sobject2,reduction = "pca",dims = 1:30, verbose = F)
+sobject2<-FindNeighbors(sobject2,dims=1:30,verbose=F)
 set.seed(1)
-mgAVM03<-FindClusters(mgAVM03,verbose=F,resolution = 0.5)
+sobject2<-FindClusters(sobject2,verbose=F,resolution = 0.5)
 
-DimPlot(object = mgAVM03, pt.size=0.5, label=F)
-DimPlot(object = mgAVM03, group.by="sample_description", pt.size=0.5)
-DimPlot(object = mgAVM03, group.by="finalclusters", pt.size=0.5, label=T)
-DimPlot(object = mgAVM03, group.by="sample_description",split.by = "finalclusters", pt.size=0.5,ncol = 3)
+DimPlot(object = sobject2, pt.size=0.5, label=F)
+DimPlot(object = sobject2, group.by="sample_description", pt.size=0.5)
+DimPlot(object = sobject2, group.by="finalclusters", pt.size=0.5, label=T)
+DimPlot(object = sobject2, group.by="sample_description",split.by = "finalclusters", pt.size=0.5,ncol = 3)
 
 ```
 
@@ -886,7 +929,6 @@ DimPlot(object = mgAVM03, group.by="sample_description",split.by = "finalcluster
 Barplot
 
 ```{r}
-sobject = mgAVM02
 r = table(droplevels(sobject$finalclusters),sobject$fulldescription)
 x = grep("P7",colnames(r))
 r = r[,x]
@@ -930,7 +972,7 @@ dev.off()
  
 ```{r}
 
-all = table(LD1$SCT_snn_res.0.3,LD1$sample_description)
+all = table(sobject$SCT_snn_res.0.3,LD1$sample_description)
 total = colSums(all)
 clusters = rownames(all)
 test = list()
