@@ -972,7 +972,7 @@ dev.off()
  
 ```{r}
 
-all = table(sobject$SCT_snn_res.0.3,LD1$sample_description)
+all = table(sobject$SCT_snn_res.0.3,sobject$sample_description)
 total = colSums(all)
 clusters = rownames(all)
 test = list()
