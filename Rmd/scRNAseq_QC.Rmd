@@ -15,7 +15,10 @@ Begin by installing and loading necessary packages. Unhash the "install" script 
 #install.packages("BiocManager")
 #BiocManager::install("Seurat")
 #BiocManager::install("ggplot2")
-#BiocManager::install("sctransform")
+#install.packages("dplr")
+#install.packages("ape")
+#install.packages("cowplot")
+#install.packages("Matrix")
 ```
 
 Load packages into your workspace. 
@@ -23,18 +26,16 @@ Load packages into your workspace.
 ```{r}
 library(Seurat)
 library(ggplot2)
-#library(sctransform)
 library(dplyr)
 library(ape)
-#library(variancePartition)
 library(cowplot)
 library(Matrix)
-#library(magrittr)
+
 #find out where you are
 getwd()
 ```
 
-*Edit the following code every time* and make sure the folders "QC" and "Seurat"... are present in the "dir" folder above
+*Edit the following code every time* and make sure the folders "QC" and ... are present in the "dir" folder above
 ```{r}
 #Specify your preferred directory for all input + output
 dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02"
@@ -69,7 +70,6 @@ condition = c("Deprived","Control","Deprived","Control")
 m = c("nCount_RNA","nFeature_RNA","percent.mito")
 
 #set up folders
-datafolder = "Seurat"
 QCfolder = "QC"
 ```
 
