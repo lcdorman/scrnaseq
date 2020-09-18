@@ -43,9 +43,9 @@ dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02"
 #Specify exactly where your matrix files/raw data live
 datafolder = "Data/CellRanger"
 
-
 #Add in any folder name within each sample that leads to your data files: 
 innerfolder = "filtered_feature_bc_matrix"
+
 #Specify what kind of data you have: "CellRanger" Output (barcodes + matrix .tsv files) or "counts" data (usually something ending in counts.tsv)
 datatype = "CellRanger"
 
@@ -80,7 +80,6 @@ Then create an object with the folder names that you can use to open each sample
 ids = list.files(file.path(dir,datafolder))
 ids
 ```
-*Edit this as well*
 
 Assign meaningful identities to each sample, or load in a csv file
 ```{r}
@@ -339,7 +338,24 @@ Filtering cells: note that they are taking these filters and duplicating them ac
 How to select filters??? noise vs signal - get them from the violin plots and the matrix, capture the bulk of cells but exclude outliers (say with mtDNA filter) - can also look at percentiles, maybe get rid of top 5% since it was very different from the rest. Basically eliminate outliers and don't include cells that have hardly any genes or have a ton of genes expressed. First save the original object: 
 
 ```{r}
-save(sobject,file = file.path(dir,datafolder,paste0(project,"_beforeQC.RData")))
+save(sobject,file = file.path(dir,"Data/Seurat",paste0(project,"_beforeQC.RData")))
 ```
 
+Subset the data. Printing tables lets you see the progression as you tighten your QC cutoffs. 
+```{r}
+print("initial")
+table(sobject$sample_description) #print out initial cell counts
+sobject = subset(sobject, subset = percent.mito>mlo & percent.mito < mhi) #subset mitochondria
+print("mito")
+table(sobject$sample_description) #new cell counts
+sobject = subset(sobject, subset = nCount_RNA>clo & nCount_RNA < chi)
+print("ncount")
+table(sobject$sample_description)
+sobject = subset(sobject, subset = nFeature_RNA>flo & nFeature_RNA < chi)
+print("nfeature")
+table(sobject$sample_description)
+```
 
+```{r}
+save(sobject, file = file.path(dir,"Data/Seurat",paste0(project,"_filtered.RData")))
+```
