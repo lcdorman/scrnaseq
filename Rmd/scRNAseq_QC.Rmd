@@ -73,6 +73,7 @@ m = c("nCount_RNA","nFeature_RNA","percent.mito")
 QCfolder = "QC"
 ```
 
+*Please note you will also have to edit the thresholding chunk below, line 258. You may run everything up until then*
 
 Then create an object with the folder names that you can use to open each sample folder when you need it. The following code will allow you to open all the folders in sequence. 
 ```{r}
