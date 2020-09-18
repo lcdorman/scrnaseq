@@ -173,17 +173,15 @@ if (organism %in% c("Human","Mouse","Rat")){
   } else {
     sexgene = "Xist"
   }
-  genecount = GetAssayData(sobject,slot = "counts")[sexgene,]
-  cells = names(genecount)
-  female = genecount[genecount > 0]
-  male = genecount[genecount <1]
-  names(cells)[cells %in% names(female)] = "Female"
-  names(cells)[cells %in% names(male)] = "Male"
+  sex = GetAssayData(sobject,slot = "counts")[sexgene,]
+  sex[sex>0] = "Female"
+  sex[sex != "Female"] = "Male"
   #add in a new metadata column
-  sobject$sex = cells
+  sobject$sex = sex
   #Check with a violin plot
   VlnPlot(sobject,sexgene,group.by = "sex")
 }
+
 
 ```
 
