@@ -34,7 +34,7 @@ library(Matrix)
 getwd()
 ```
 
-*Edit the following code every time*
+*Edit the following code every time* and make sure the folders "QC" and "Seurat"... are present in the "dir" folder above
 ```{r}
 #Specify your preferred directory for all input + output
 dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02"
@@ -61,6 +61,16 @@ project<-"Microglia_BC"
 #Specify your organism; please capitalize the first letter (i.e. "Mouse", "Human","Zebrafish","Rat")
 organism = "Mouse"
 
+#Add in metadata. You may want to run the next chunk and then return to edit this so it is in the same order as "ids"
+age = c(rep("P5",2),rep("P7",2))
+condition = c("Deprived","Control","Deprived","Control")
+
+#metrics you want to look at for QC
+m = c("nCount_RNA","nFeature_RNA","percent.mito")
+
+#set up folders
+datafolder = "Seurat"
+QCfolder = "QC"
 ```
 
 
@@ -74,8 +84,6 @@ ids
 Assign meaningful identities to each sample, or load in a csv file
 ```{r}
 names = ids
-age = c(rep("P5",2),rep("P7",2))
-condition = c("Deprived","Control","Deprived","Control")
 sample_description = paste0(condition,"-",age)
 meta = as.data.frame(cbind(age,condition,sample_description))
 rownames(meta) = ids
@@ -181,20 +189,18 @@ if (organism %in% c("Human","Mouse","Rat")){
   #Check with a violin plot
   VlnPlot(sobject,sexgene,group.by = "sex")
 }
-
-
 ```
 
-QC - decide on final filtering parameters, look for clear outliers/differences between samples. These are quantiles of cells. Also shows you the variability between cells (and between samples)
+*QC - decide on final filtering parameters, look for clear outliers/differences between samples.*
 
-Function to make an annotated violin plot
+1. Function to make an annotated violin plot
 ```{r}
 anno_vln = function(seurat_object = sobject, metric = "nCount_RNA", group = "orig.ident"){
   #specify number of categories
   n = length(levels(seurat_object@meta.data[,group]))
 
   #make a violin plot
-  a = VlnPlot(seurat_object,metric,group.by = group,pt.size = 0,log = F,cols = rep("grey",n))
+  a = VlnPlot(seurat_object,metric,group.by = group,pt.size = 0,log = F,cols = rep("lightgrey",n))
 
   #make a simple function that quantifies percentiles for each column
   add.percentiles = function(x) {
@@ -206,20 +212,18 @@ anno_vln = function(seurat_object = sobject, metric = "nCount_RNA", group = "ori
 }
 ```
 
-Plot each metric
+Plot each metric. Red = 0%, Purple = 20%, Yellow = 40%, Black = 50%,Green = 60%, Blue = 80%, Grey = 100% percentile
 ```{r}
-m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
-directory = "~/Desktop/QC"
 #Save graphs
 for (i in m){
   graph = anno_vln(metric = i)
   setEPS()
-  postscript(file.path(directory,paste0(i,project,".eps")))
+  postscript(file.path(dir,QCfolder,paste0(i,project,".eps")))
   print(graph)
   dev.off()
 }
 
-#print graphs
+#print graphs to console
 for (i in m){
   graph = anno_vln(metric = i)
   print(graph)
@@ -231,17 +235,16 @@ Plot the number of cells each gene is represented by - i.e. how many cells expre
 ```{r}
 plot(sort(Matrix::rowSums(GetAssayData(sobject)>=2)),xlab="gene rank",ylab="number of cells",main="Cells per genes ( >= 2 )")
 ```
-Gene Plot, scatter plot of gene expression across cells, (colored by sample) - sequencing depth relative to genes; looking for similarity across samples. Some cell types can have relatively few genes, but highly expressed, could show up as a second arc below the one seen here (should contain all samples though)
+
+A. Gene Plot, scatter plot of gene expression across cells, (colored by sample) - sequencing depth relative to genes; looking for similarity across samples. Some cell types can have relatively few genes, but highly expressed, could show up as a second arc below the one seen here (should contain all samples though)
+B. % Mitochondrial RNA vs Feature counts
 ```{r}
 Idents(sobject) = "sample_description"
-m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
-
-directory = "~/Desktop/QC"
 #Save graphs
 for (i in 1:(length(m)-1)){
   graph = FeatureScatter(sobject,m[i],m[i+1])+ theme_bw()
   setEPS()
-  postscript(file.path(directory,paste0(m[i],"_",m[i+1],project,"scatter.eps")))
+  postscript(file.path(dir,QCfolder,paste0(m[i],"_",m[i+1],project,"scatter.eps")))
   print(graph)
   dev.off()
 }
@@ -254,14 +257,12 @@ for (i in 1:(length(m)-1)){
 ```
 Set limits based on the graphs
 ```{r}
-mlo = -0.1
-mhi = 10
-clo = 1200
-chi = 15000
-flo = 500
-fhi = 3000
-rlo = 0
-rhi = 70
+mlo = 0.0000
+mhi = 7.5
+clo = 5000
+chi = 35000
+flo = 2500 
+fhi = 7500
 ```
 
 Violin plot of 1) number of genes, 2) number of UMI and 3) percent mitochondrial genes; save with lines that show cutoffs
@@ -269,22 +270,20 @@ Violin plot of 1) number of genes, 2) number of UMI and 3) percent mitochondrial
 ```{r}
 group = "sample_description"
 #Make a table with your cutoff values
-m = c("nFeature_RNA","nCount_RNA","percent.mito","percent.ribo")
-tablelow = c(flo,clo,mlo,rlo)
-tablehigh = c(fhi,chi,mhi,rhi)
+tablelow = c(clo,flo,mlo)
+tablehigh = c(chi,fhi,mhi)
 t = as.data.frame(rbind(tablelow,tablehigh))
 colnames(t) = m
 
 
-#Save graphs
-directory = "~/Desktop/QC"
+#save graphs
 for (i in 1:ncol(t)){
   metric = colnames(t)[i]
   low = t[1,i]
   high = t[2,i]
   graph = anno_vln(metric = metric) + geom_abline(intercept = high, slope = 0, linetype = "dashed",color = "red", size = 0.8) + geom_abline(intercept = low, slope = 0, linetype = "dashed",color = "black", size = .8)
   setEPS()
-  postscript(file.path(directory,paste0(colnames(t)[i],project,"withcutoffs.eps")))
+  postscript(file.path(dir,QCfolder,paste0(colnames(t)[i],project,"withcutoffs.eps")))
   print(graph)
   dev.off()
 }
@@ -303,8 +302,6 @@ for (i in 1:ncol(t)){
 
 Scatter plots with lines to show cutoffs
 ```{r}
-t
-directory = "~/Desktop/QC"
 #Save graphs
 for (i in 1:(length(colnames(t))-1)){
   xm = colnames(t)[i]
@@ -315,7 +312,7 @@ for (i in 1:(length(colnames(t))-1)){
   yhigh = t[2,i+1]
   graph = FeatureScatter(sobject,xm,ym)+ theme_bw() + geom_vline(xintercept = xlow, linetype = "dashed",color = "black", size = .8) + geom_vline(xintercept = xhigh, linetype = "dashed",color = "red", size = .8)+ geom_hline(yintercept = ylow, linetype = "dashed",color = "black", size = .8)  + geom_hline(yintercept = yhigh, linetype = "dashed",color = "red", size = .8)
   setEPS()
-  postscript(file.path(directory,paste0(m[i],"_",m[i+1],project,"scatter_withcutoffs.eps")))
+  postscript(file.path(dir,QCfolder,paste0(m[i],"_",m[i+1],project,"scatter_withcutoffs.eps")))
   print(graph)
   dev.off()
 }
@@ -341,8 +338,7 @@ Filtering cells: note that they are taking these filters and duplicating them ac
 How to select filters??? noise vs signal - get them from the violin plots and the matrix, capture the bulk of cells but exclude outliers (say with mtDNA filter) - can also look at percentiles, maybe get rid of top 5% since it was very different from the rest. Basically eliminate outliers and don't include cells that have hardly any genes or have a ton of genes expressed. First save the original object: 
 
 ```{r}
-directory = "~/Desktop/Sequencing/Nick/2_2020/NickData"
-#save(sobject,file = file.path(directory,"afterQC.RData"))
+save(sobject,file = file.path(dir,datafolder,paste0(project,"_beforeQC.RData")))
 ```
 
 
