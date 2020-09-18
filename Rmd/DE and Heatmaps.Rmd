@@ -1,5 +1,5 @@
 ---
-title: "Subset_script"
+title: "Differential Expression and Heatmaps"
 output: html_document
 ---
 
@@ -9,120 +9,84 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## R Markdown
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
 ```{r}
 #install.packages("BiocManager")
-
 #BiocManager::install("Seurat")
 #BiocManager::install("ggplot2")
-#BiocManager::install("sctransform")
+#install.packages("dplr")
+#install.packages("ape")
+#install.packages("cowplot")
+#install.packages("Matrix")
+```
 
+Load packages into your workspace. 
+
+```{r}
 library(Seurat)
 library(ggplot2)
-library(sctransform)
 library(dplyr)
 library(ape)
-library(variancePartition)
 library(cowplot)
 library(Matrix)
-library(magrittr)
 
 #find out where you are
 getwd()
-
-#Specify where your matrix files are
-dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/"
 ```
 
+*Edit the following code every time* 
+and make sure the folders "QC" and ... are present in the "dir" folder
 ```{r}
-filename = "sobject.RData"
-load(file = file.path(dir,"Data/Seurat",filename))
-```
+#Specify your preferred directory for all input + output
+dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02"
 
+#Specify exactly where your seurat files live
+datafolder = "Data/Seurat"
 
-Subset the data to include only your celltypes of interest: 
-```{r}
-#edit keep to include all wanted celltypes
-keep = c("mpeg")
+#Specify your organism; please capitalize the first letter (i.e. "Mouse", "Human","Zebrafish","Rat")
+organism = "Mouse"
 
-#subset the object by the metadata column "celltype"
-sobject = subset(sobject,subset = celltype %in% keep)
+#metrics you want to look at for QC
+m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
 
-#check the resulting subset
-table(sobject$celltype,sobject$seurat_clusters)
-```
-Whenever you remove cells from a seurat object, you have to re-normalize, scale, and calculate pca/umap/clustering. This is copied out from above. I'm keeping the same add.genes but of course you could change them here. 
+#set up folders
+QCfolder = "QC"
 
-```{r}
-sct = FALSE
-add.genes = c("ptprc","lgmn","hexb","mpeg1.1","apoeb")
+#This name needs to match your project name within the seurat object
+project<-"Microglia_BC" 
+
+#You can add in housekeeping genes if you want them to be scaled always; otherwise set to "NULL"
+add.genes = NULL
+
+#Choose what to regress out - could be age, sex, or any metadata column
 regress = c("nFeature_RNA")
 
-if (sct){sobject <- SCTransform(sobject, vars.to.regress = regress, verbose = FALSE,variable.features.n = 6000,conserve.memory = T)}
+#Decide whether to use SCtransform (can take a long time with big datasets; generally recommended)
+sct = TRUE
 
-if (!sct){
-  sobject <- NormalizeData(sobject,normalization.method = "LogNormalize", scale.factor = 10000)
+#How many genes do you want scaled to use for UMAP/clustering? 
+ngenes = 10000
 
-  sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = 10000)
-  all.genes<-rownames(sobject)
-  var.genes = VariableFeatures(sobject)
-
-  add.genes = add.genes[!add.genes %in% var.genes]
-  any(add.genes %in% var.genes)
-  scalegenes = c(var.genes,add.genes)
-
-  sobject<-ScaleData(sobject,features = scalegenes, vars.to.regress = regress)
-}
-
-top10 <- c(head(VariableFeatures(sobject),10),"cd74b","mpeg1.1","cd74a","hexb","apoeb")
-plot1 = VariableFeaturePlot(sobject)
-LabelPoints(plot=plot1, points = top10, repel = F, xnudge = 0.1, ynudge = 0.5)
-```
-
-Run PCA analysis
-```{r}
-sobject <- RunPCA(sobject,features = scalegenes,npcs = 50, verbose = FALSE)
-
-ElbowPlot(sobject,ndims = 50, reduction = "pca")
-print(sobject[["pca"]], dims = 1:10, nfeatures = 5)
-```
-
-Once you are satisfied with pc's, run clustering: 
-```{r}
+#Which principal components do you want to calculate on? This is a default setting, change if one of the pc's is for something you think is a technical error (i.e. HSP, RP, etc)
 pcs = 1:30
-sobject<-RunUMAP(sobject,reduction = "pca",dims = pcs, verbose = F)
-sobject<-FindNeighbors(sobject,dims=pcs,verbose=F)
 
-res = 0.3 #set this to anything
-sobject<-FindClusters(sobject,verbose=F,resolution = res) 
+#clustering resolution; the last number will be saved as "seurat_clusters" in metadata
+res = c(0.5,1.5,1.0)
+
+#Important genes to determine your cells of interest
+igenes = c("Cx3cr1","Rbfox3","Aldh1l1","Pecam1")
+
+#metadata dimensions
+dims = c("seurat_clusters","sample_description","age","condition")
+
+#the data file you want to open
+filename = "_Macrophages_subset.RData"
 ```
 
-Look at resulting clustering to evaluate
+Load in your filtered dataset
 ```{r}
-genes = c("mpeg1.1","apoeb","ptprc","hexb","cd74a","cd74b","bzw2","g0s2","ctsba","lygl1")
-genes[genes %in% VariableFeatures(sobject)]
-dims = c("seurat_clusters","sample_description","age")
-QC = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
-
-for (dim in dims){
-  print(DimPlot(sobject,group.by = dim, label = T))
-}
-
-FeaturePlot(sobject,genes)
-FeaturePlot(sobject,QC)
-
-VlnPlot(sobject,genes,sort = "increasing",pt.size = 0.01)
-
-#Build a clustering tree
-Idents(sobject) = "seurat_clusters"
-sobject= BuildClusterTree(sobject,dims = 1:30)
-tree = sobject@tools$BuildClusterTree
-plot.phylo(tree, use.edge.length = T, direction = "rightwards")
-save(sobject,file = file.path(dir,paste0(Project(sobject),"_",keep,"only_umap.RData")))
+load(file.path(dir,datafolder,paste0(project,filename)))
 ```
+
 
 Heatmap for clusters within this celltype
 ```{r}
