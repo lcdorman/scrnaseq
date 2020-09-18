@@ -9,55 +9,76 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## R Markdown
 
+Begin by installing and loading necessary packages. Unhash the "install" script if you need to install them. You only need to install once per machine, unless you want to update. 
 
 ```{r}
 #install.packages("BiocManager")
-
 #BiocManager::install("Seurat")
 #BiocManager::install("ggplot2")
 #BiocManager::install("sctransform")
+```
 
+Load packages into your workspace. 
+
+```{r}
 library(Seurat)
 library(ggplot2)
-library(sctransform)
+#library(sctransform)
 library(dplyr)
 library(ape)
-library(variancePartition)
+#library(variancePartition)
 library(cowplot)
 library(Matrix)
-library(magrittr)
-
+#library(magrittr)
 #find out where you are
 getwd()
+```
 
-#Specify where your matrix files are
-dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/Data/CellRanger"
+*Edit the following code every time*
+```{r}
+#Specify your preferred directory for all input + output
+dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02"
+
+#Specify exactly where your matrix files/raw data live
+datafolder = "Data/CellRanger"
 
 
+#Add in any folder name within each sample that leads to your data files: 
+innerfolder = "filtered_feature_bc_matrix"
+#Specify what kind of data you have: "CellRanger" Output (barcodes + matrix .tsv files) or "counts" data (usually something ending in counts.tsv)
+datatype = "CellRanger"
+
+#if "datatype" = "counts", specify "filename", otherwise "NA" or "NULL"
+filename = "GEX_counts.tsv.gz"
 ```
 
 
 Then create an object with the folder names that you can use to open each sample folder when you need it. The following code will allow you to open all the folders in sequence. 
 ```{r}
-ids = list.files(dir)
+ids = list.files(file.path(dir,datafolder))
 ids
 ```
 
-For each ID (i.e. folder), read in the data and change the colnames as follows:
-
-split the colnames that already exist into a list; then remove anything after "-" (split), then extract only the first element ('[[', index = 1L), then paste the ID to each colname (gene) separated by "-". Return d10x. Repeat for each id. 
-
+For each ID (i.e. folder), read in the data and change the colomn names to look like: "Barcode - id". If the second chunk doesn't work, try manually unzipping the file. Make sure to change the 'filename' extension above. 
 ```{r}
-d10x.data <- sapply(ids, function(id){
-        d10x <- Read10X(file.path(dir, id,"filtered_feature_bc_matrix")) #read in each matrix
-        colnames(d10x) <- paste(sapply(strsplit(colnames(d10x),split="-"),'[[',1L),id,sep="-") 
-        d10x
-})
+if (datatype == "CellRanger"){
+  d10x.data = sapply(ids, function(id){
+    d10x = Read10X(file.path(dir,datafolder,id,innerfolder)) #read in each matrix
+    colnames(d10x) = paste(sapply(strsplit(colnames(d10x),split="-"),'[[',1L),id,sep="-") 
+    d10x
+  })
+}
 
+if (datatype == "counts"){
+  d10x.data = sapply(ids, function(id){
+    d10x =as.sparse(read.table(file.path(dir,datafolder,id,filename),sep = '\t',header = T,row.names = 1))
+    colnames(d10x) = paste(sapply(strsplit(colnames(d10x),split="-"),'[[',1L),id,sep="-")
+    d10x
+  })
+}
 ```
 
-
-The d10x.data object is a list of lists whose columns consist of cell IDs and whose rows represent genes. 
+The d10x.data object is a list of arrays whose columns consist of cell IDs and whose rows represent genes. 
 Make experiment.data into an array with each element of d10x.data (which is a list) as columns (as many columns as cells per sample)
 This creates a new array that contains all of the cells and genes from d10x.data but puts them in one array instead of many. 
 
