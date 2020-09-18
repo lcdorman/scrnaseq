@@ -50,6 +50,17 @@ datatype = "CellRanger"
 
 #if "datatype" = "counts", specify "filename", otherwise "NA" or "NULL"
 filename = "GEX_counts.tsv.gz"
+
+#Set minimums for genes/cell (min.features) and cell expressing a given gene (min.cells). Default is 1/1, you can filter later. If the object is very large, filter here. 
+min.cells = 1
+min.features = 1
+
+#Name your project something descriptive
+project<-"Microglia_BC" 
+
+#Specify your organism; please capitalize the first letter (i.e. "Mouse", "Human","Zebrafish","Rat")
+organism = "Mouse"
+
 ```
 
 
@@ -57,6 +68,18 @@ Then create an object with the folder names that you can use to open each sample
 ```{r}
 ids = list.files(file.path(dir,datafolder))
 ids
+```
+*Edit this as well*
+
+Assign meaningful identities to each sample, or load in a csv file
+```{r}
+names = ids
+age = c(rep("P5",2),rep("P7",2))
+condition = c("Deprived","Control","Deprived","Control")
+sample_description = paste0(condition,"-",age)
+meta = as.data.frame(cbind(age,condition,sample_description))
+rownames(meta) = ids
+meta
 ```
 
 For each ID (i.e. folder), read in the data and change the colomn names to look like: "Barcode - id". If the second chunk doesn't work, try manually unzipping the file. Make sure to change the 'filename' extension above. 
@@ -79,92 +102,89 @@ if (datatype == "counts"){
 ```
 
 The d10x.data object is a list of arrays whose columns consist of cell IDs and whose rows represent genes. 
-Make experiment.data into an array with each element of d10x.data (which is a list) as columns (as many columns as cells per sample)
-This creates a new array that contains all of the cells and genes from d10x.data but puts them in one array instead of many. 
+Make experiment.data, a single array with as many columns as total cells. 
 
 ```{r}
 experiment.data<-do.call("cbind",d10x.data)
 ```
 
-"Aggregate" the data which cellRanger does, but not well. Create a seurat object, keeping genes that are in >3 cells, cells with >50 genes (you can always set these to zero and filter later)
+"Aggregate" the data which cellRanger can do, but not well. Create a seurat object, keeping genes that are in >3 cells, cells with >50 genes (you can always set these to zero and filter later)
 
-All of the following fields can be altered. I am not filtering by cells or features; the "names.field" and "names.delim" determines the input identity for each cell. 
+"names.field" and "names.delim" determines the input identity for each sample. IE if the cells are named "barcode - id", the "name" for each sample (listed in orig.ident) will be id.  
 
 ```{r}
-project<-"Leah" #Name this anything you want
-colnames(experiment.data)[1:5] #look at cell name structure
-
 sobject <- CreateSeuratObject(
         experiment.data,
         project = project, 
-        min.cells = 3, #minimum cells each gene is present in
-        min.features = 50, #minimum genes per cell
+        min.cells = min.cells, 
+        min.features = min.features, 
         names.field = 2, #put the "id" from above into meta data
         names.delim = "\\-")
+
 table(sobject$orig.ident)
 ```
 
-Calculate mitochondrial content, add as metadata to each cell (column). Percent mito is literally dividing one matrix by another matrix to get a percentage. Grep searches through rownames of the data (i.e. genes) for anything that starts with mt. 
+Calculate mitochondrial and ribosomal content, add as metadata to each cell (column). Percent mito is literally dividing one matrix by another matrix to get a percentage. Grep searches through rownames of the data (i.e. genes) for anything that starts with mt. 
 
 ```{r}
-sobject <- PercentageFeatureSet(sobject, pattern = "^mt-", col.name = "percent.mito")
-sobject <- PercentageFeatureSet(sobject, pattern = "^Rp", col.name = "percent.ribo")
+if (organism %in% c("Mouse","Rat")){
+  sobject <- PercentageFeatureSet(sobject, pattern = "^mt-", col.name = "percent.mito")
+  sobject <- PercentageFeatureSet(sobject, pattern = "^Rp", col.name = "percent.ribo")
+}
+if (organism == "Human"){
+  sobject <- PercentageFeatureSet(sobject, pattern = "^MT-", col.name = "percent.mito")
+  sobject <- PercentageFeatureSet(sobject, pattern = "^RP", col.name = "percent.ribo")
+}
+if (organism == "Zebrafish"){
+  sobject <- PercentageFeatureSet(sobject, pattern = "^mt-", col.name = "percent.mito")
+  sobject <- PercentageFeatureSet(sobject, pattern = "^rp", col.name = "percent.ribo")
+}
 ```
 
-Extract the sampleIDs which are stored in "orig.ident". The numbers are numbers of cells (columns). Orig.ident is defined by the file from which the data was isolated. 
+Note that the metadata column "orig.ident" always holds your sample IDs (i.e. the names of the data folders). Don't overwrite it. 
+
+Add sample descriptions as metadata columns.
 
 ```{r}
-samplename = as.factor(sobject$orig.ident)
-table(samplename)
-```
+samplename = as.character(sobject$orig.ident)
+names(samplename) = names(sobject$orig.ident)
 
-add sample descriptions to the column (cell) names for each sample. if you call a name of a cell you can see which sample it's from
+#replace the names with any column of "meta" - add anything to meta and the following if necessary
+age = sapply(samplename,function(x)meta[x,"age"])
+condition = sapply(samplename,function(x)meta[x,"condition"])
+sample_description = sapply(samplename,function(x)meta[x,"sample_description"])
 
-```{r}
-#check that the names are levels
-levels(samplename)
-
-#rename to whatever you like, in order
-levels(samplename) = c("Juvenile A","Adult A","Adult B","Juvenile B") 
-table(samplename)
-
-#add new metadata column
-sobject$sample_description = samplename
+#add new metadata columns
+sobject$sample_description = sample_description
+sobject$age = age
+sobject$condition = condition
 
 #check
 table(sobject$sample_description,sobject$orig.ident)
-
-#Add in any other metadata
-age = sobject$sample_description
-levels(age) = c("Juvenile","Adult","Adult","Juvenile")
-sobject$age = age
-
-individual = sobject$sample_description
-levels(individual) = c("A","A","B","B")
-sobject$individual = individual
+table(sobject$age,sobject$condition)
+table(sobject$age,sobject$sample_description)
 ```
 
 For mouse/human cells, you can determine from Xist expression which ones are male and which are female. 
 ```{r}
-sexgenes = c("g0s2","ptprc") #normally set to Xist and Tsix
-sex = GetAssayData(sobject,slot = "counts")[sexgenes,]
+if (organism %in% c("Human","Mouse","Rat")){
+  if (organism == "Human") {
+    sexgene = "XIST"
+  } else {
+    sexgene = "Xist"
+  }
+  genecount = GetAssayData(sobject,slot = "counts")[sexgene,]
+  cells = names(genecount)
+  female = genecount[genecount > 0]
+  male = genecount[genecount <1]
+  names(cells)[cells %in% names(female)] = "Female"
+  names(cells)[cells %in% names(male)] = "Male"
+  #add in a new metadata column
+  sobject$sex = cells
+  #Check with a violin plot
+  VlnPlot(sobject,sexgene,group.by = "sex")
+}
 
-#now you have a 2-row array with a number of counts per cell; split by whether counts are >1 or <1
-female = sex[,sex[1,]>1 & sex[2,] > 1]
-
-#get all the cell names from your seurat object
-cells = colnames(sobject)
-names(cells) = rep("Male",length(cells))
-names(cells)[cells %in% colnames(female)] = "Female"
-
-fm = names(cells)
-table(fm)
-
-#add in a new metadata column
-sobject$sex = fm
-
-#Check with a violin plot
-VlnPlot(sobject,sexgenes,group.by = "sex")
 ```
 
 QC - decide on final filtering parameters, look for clear outliers/differences between samples. These are quantiles of cells. Also shows you the variability between cells (and between samples)
