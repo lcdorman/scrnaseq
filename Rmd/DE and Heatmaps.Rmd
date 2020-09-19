@@ -82,9 +82,6 @@ dims = c("seurat_clusters","sample_description","age","condition")
 #the data file you want to open
 filename = "Microglia_BC_Allcells_Macrophages_subset.RData"
 
-#edit to include all desired celltypes to subset on later
-keep = c(NULL)
-
 #make a unique name; maybe this is the celltype you've already subset, or the age you're looking at, etc. 
 iterationname = "Macrophage_only"
 ```
