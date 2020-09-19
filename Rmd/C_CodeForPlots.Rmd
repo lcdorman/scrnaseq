@@ -19,6 +19,7 @@ library(dplyr)
 library(ape)
 library(cowplot)
 library(Matrix)
+library(EnhancedVolcano)
 
 #find out where you are
 getwd()
@@ -28,7 +29,11 @@ dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/"
 datafolder = "Data/Seurat"
 filename = "Microglia_BC_Macrophages_subset.RData"
 organism = "Mouse"
-defile = "allmarkers_vargenesMG_0501.csv"
+defile = "Macrophage_only_all_markers.csv"
+
+if(organism == "Mouse"){library(org.Mm.eg.db)}
+if(organism == "Human"){library(org.Hs.eg.db)}
+if(organism == "Zebrafish"){library(org.Dr.eg.db)}
 ```
 Load in your filtered dataset
 ```{r}
@@ -44,7 +49,7 @@ column = "seurat_clusters" #can pick any metadata column
 ```
 
 
-```{r}
+```{r,eval = F, results = "hide"}
 Idents(sobject) = column
 clusters = levels(sobject@meta.data[,column]) 
 clusters = clusters[clusters != base]
@@ -70,12 +75,12 @@ Or you can run "bulk-seq" like analyses based on your original sample IDs:
 #can pick any metadata column
 column = "sample_description"
 #default cluster
-cluster1 = 'P5_Deprived'    
+cluster1 = 'Deprived-P5'    
 #cluster of interest
-cluster2 = "P5_Control"
+cluster2 = "Control-P5"
 ```
 
-```{r}
+```{r,results = "hide", eval = FALSE}
 Idents(sobject) = column
 markers = FindMarkers(sobject,
                       ident.1=cluster1,
@@ -84,7 +89,7 @@ markers = FindMarkers(sobject,
                       logfc.threshold = 0.0,
                       min.pct = 0.1,
                       test.use = "MAST")
-write.csv(markers,file.path(dir,paste0("markers_",cluster1,"_vs_",cluster2,".csv")))
+write.csv(markers,file.path(dir,"Spreadsheets",paste0("markers_",cluster1,"_vs_",cluster2,".csv")))
 ```
 
 You can also make plots with only subsets of cells: Best for making umap plots where both conditions/individuals have equal representation. 
@@ -92,13 +97,37 @@ You can also make plots with only subsets of cells: Best for making umap plots w
 #first check how many cells are in each group so you don't pick a number more than the min
 column = "sample_description"
 ncells = 2000
-genes = c("")
-features = c("")
-categories = c("")
-name = "equalcells"
-dir = ""
+genes = c("Cx3cr1","P2ry12","Spp1","Nrxn2","Ifitm3","Mki67","Pf4")
+features = m
+categories = c("sample_description","age","condition","celltypecluster")
+name = "macrophage_equalcells"
 ```
 
+Function to print multiple graphs: 
+```{r}
+PrintSeuratGraph = function(namecard = "a",seurat_object = sobject,graphtype = "feature",feature = NULL,group = NULL,split=NULL,cellnames=NULL){
+  if (!is.null(cellnames)){
+    Idents(seurat_object) = cellnames[1]
+    cells = colnames(seurat_object)[Idents(seurat_object) %in% cellnames[2:length(cellnames)]]} 
+  else {cells = cellnames}
+  if (graphtype == "feature"){
+    graph = FeaturePlot(seurat_object,features = feature,split.by = split, cells = cells,cols = c("lightyellow","darkred"))
+  }
+  if (graphtype == "violin"){
+    graph = VlnPlot(seurat_object,features = feature, pt.size = 0.1, idents = cellnames[2:length(cellnames)],group.by = group, split.by = split)
+  }
+  if (graphtype == "dim"){
+    graph = DimPlot(seurat_object,cells = cells, group.by = group, split.by = split)
+    
+  }
+  name = paste0(feature,"_",graphtype,namecard,".eps")
+  graph
+  setEPS()
+  postscript(file.path(dir,Plotfolder,name))
+  print(graph)
+  dev.off()
+}
+```
 
 ```{r}
 table(sobject$sample_description)
@@ -137,33 +166,36 @@ for(feature in c(genes,features)){
 You can save umap and pc embeddings to load into other programs like Loupe and anything in Python like scvelo (velocity)
 ```{r}
 #Edit name only if one project has multiple embeddings
-name = Project(sobject)
+name = paste0(Project(sobject),"_",name)
 ```
 
 
 ```{r}
 #Save umap embeddings
-umap = sobject@reductions$umap@cell.embeddings
+umap =as.data.frame(sobject@reductions$umap@cell.embeddings)
 umap$Cellname = rownames(umap)
-write.csv(umap,file = file.path(dir,paste0(name,"_umap_embed.csv"),row.names = F))
+umap = umap[,order(colnames(umap))]
+write.csv(umap,file = file.path(dir,"Annotation",paste0(name,"_umap_embed.csv")),row.names = F)
 
 #save pcs
-pc = sobject@reductions$pca@cell.embeddings
+pc =as.data.frame(sobject@reductions$pc@cell.embeddings)
 pc$Cellname = rownames(pc)
-write.csv(pc,file = file.path(dir,paste0(name,"_pc_embed.csv"),row.names = F))
+pc = pc[,order(colnames(pc))]
+write.csv(pc,file = file.path(dir,"Annotation",paste0(name,"_pc_embed.csv")),row.names = F)
 
 #save metadata
 meta = sobject@meta.data
-meta$gene = rownames(meta)
-write.csv(pc,file = file.path(dir,paste0(name,"_metadata.csv"),row.names = F))
+meta$Cellname = rownames(meta)
+meta = meta[,c(ncol(meta),1:(ncol(meta)-1))]
+write.csv(pc,file = file.path(dir,"Annotation",paste0(name,"_metadata.csv")),row.names = F)
 
 #For PanoView (in Python, a way to mathematically validate # of clusters found)
 annotation = sobject$sample_description #or any column
 x = as.matrix(GetAssayData(sobject,slot = "counts"))
 x = x[rownames(x) %in% VariableFeatures(sobject),]
 
-write.csv(x,file = file.path(dir,paste0(name,"_counts.csv")))
-write.csv(annotation,file = file.path(dir,paste0(name,"_annotation.csv")))
+write.csv(x,file = file.path(dir,"Annotation",paste0(name,"_counts.csv")))
+write.csv(annotation,file = file.path(dir,"Annotation",paste0(name,"_annotation.csv")))
 ```
 
 You can add annotations from the annotationDB database: 
@@ -176,7 +208,6 @@ if (organism == "Mouse"){db = org.Mm.eg.db}
 if (organism == "Human"){db = org.Hs.eg.db}
 if (organism == "Zebrafish"){db = org.Dr.eg.db}
 
-de = read.csv(file.path(dir,"Spreadsheets",filename),stringsAsFactors = F) #any spreadsheet with gene symbols or other identifiers
 ids=de$gene 
 fromKey="SYMBOL" #must match the ids - could also be ensembl ID
 toKey=c("GENENAME","ENSEMBL","UNIPROT") #whatever annotation you want to add - find with keytypes(db)
@@ -195,13 +226,10 @@ Set your parameters
 ```{r}
 #Minimum fold change (i.e. 1.15 = 15% increase)
 minfc = 1.15
-
 #Max adj. p value
 alpha = 1e-25
-
-#Cluster selected
-category = "4"
-
+#Clusters selected
+categories = levels(as.factor(de$cluster))
 #Genes to highlight
 ngenes = 20
 ```
@@ -220,35 +248,33 @@ for (cluster in clusters){
 }
 
 #select a single cluster
-fc = newlist[[category]]
-fc = fc[!is.na(fc$avg_logFC),]
-colorkeysdown = fc$Gene[fc$avg_logFC < -log2(minfc) & fc$p_val_adj < alpha]
-colorkeysup = fc$Gene[fc$avg_logFC > log2(minfc) & fc$p_val_adj < alpha]
+
+for (category in categories){
+  fc = newlist[[category]]
+  fc = fc[!is.na(fc$avg_logFC),]
+  colorkeysdown = fc$Gene[fc$avg_logFC < -log2(minfc) & fc$p_val_adj < alpha]
+  colorkeysup = fc$Gene[fc$avg_logFC > log2(minfc) & fc$p_val_adj < alpha]
 
 #Either highlight specific genes or pick the top genes in colorkeysup/down
-top = fc[fc$p_val_adj<alpha,]
-top = top[order(top$avg_logFC),"Gene"]
-highlight = c(head(top,ngenes),tail(top,ngenes))
+  top = fc[fc$p_val_adj<alpha,]
+  top = top[order(top$avg_logFC),"Gene"]
+  highlight = c(head(top,ngenes),tail(top,ngenes))
 
-allcolors = rep("darkgrey",length(fc$Gene))
-names(allcolors) = fc$Gene
+  allcolors = rep("darkgrey",length(fc$Gene))
+  names(allcolors) = fc$Gene
 
-allcolors[names(allcolors) %in% colorkeysdown] = "blue"
-allcolors[names(allcolors) %in% colorkeysup]= "red"
-allcolors[names(allcolors) %in% highlight]= "yellow"
+  allcolors[names(allcolors) %in% colorkeysdown] = "blue"
+  allcolors[names(allcolors) %in% colorkeysup]= "red"
+  allcolors[names(allcolors) %in% highlight]= "yellow"
 
-names(allcolors)[allcolors == "yellow"] = "labelled"
-names(allcolors)[allcolors == "red"] = "u"
-names(allcolors)[allcolors == "darkgrey"] = "-"
-names(allcolors)[allcolors == "blue"] = "d"
-```
-
-Make and save the plots for each cluster
+  names(allcolors)[allcolors == "yellow"] = "labelled"
+  names(allcolors)[allcolors == "red"] = "u"
+  names(allcolors)[allcolors == "darkgrey"] = "-"
+  names(allcolors)[allcolors == "blue"] = "d"
   
-```{r}
-setEPS()
-postscript(file.path(dir,"Plots",paste0("Volcano_",category,".eps")))
-EnhancedVolcano(fc,
+  setEPS()
+  postscript(file.path(dir,"Plots",paste0("Volcano_",category,".eps")))
+  print(EnhancedVolcano(fc,
                 lab = fc$Gene,
                 x = 'avg_logFC',
                 y = 'p_val_adj',
@@ -267,10 +293,10 @@ EnhancedVolcano(fc,
                 colCustom = allcolors,
                 gridlines.major = F,
                 gridlines.minor = F,
-                colAlpha = 1)
-dev.off()
+                colAlpha = 1))
+  dev.off()
 
-EnhancedVolcano(fc,
+  print(EnhancedVolcano(fc,
                 lab = fc$Gene,
                 x = 'avg_logFC',
                 y = 'p_val_adj',
@@ -289,7 +315,9 @@ EnhancedVolcano(fc,
                 colCustom = allcolors,
                 gridlines.major = F,
                 gridlines.minor = F,
-                colAlpha = 1)
+                colAlpha = 1))
+
+}
 
 ```
 
@@ -326,19 +354,22 @@ FeaturePlot(sobject,"G2M.Score")
 
 #save phase plot
 setEPS()
-postscript(file.path(dir,"phasechart.eps"))
+postscript(file.path(dir,"Plots",paste0(name,"_phasechart.eps")))
 DimPlot(sobject,group.by = "Phase")
 dev.off()
+```
 
+
+```{r,eval = FALSE}
 #save seurat object with cell cycle scoring
-save(sobject,file = file.path(dir,datafolder,paste0(project,"_cellcycle.RData")))
+save(sobject,file = file.path(dir,datafolder,filename)))
 ```
 
 
 You can regress out the phase genes
-```{r}
+```{r,eval = FAlSE}
 regress = c("S.Score","G2M.Score","nCount_RNA","percent.mito")
-columns = c("sample_description","seurat_clusters","finalclusters","condition","age","Phase")
+columns = c("sample_description","seurat_clusters","celltypecluster","condition","age","Phase")
 
 #run PCA on only the cell cycle genes
 sobject2 <- RunPCA(object = sobject, pc.genes = c(s.genes, g2m.genes), do.print = FALSE, maxit=10000)
@@ -363,14 +394,23 @@ sobject2<-RunUMAP(sobject2,reduction = "pca",dims = 1:30, verbose = F)
 sobject2<-FindNeighbors(sobject2,dims=1:30,verbose=F)
 set.seed(1)
 sobject2<-FindClusters(sobject2,verbose=F,resolution = 0.5)
+```
 
+```{r}
+load(file.path(dir,datafolder, paste0(name,"_cellcycleregressed.RData")))
+```
+
+```{r}
 #make plots without cell cycle
 for (column in columns){
   print(DimPlot(object = sobject2, group.by=column, pt.size=0.5,label = T))
 }
+```
 
+
+```{r,eval = FALSE}
 #save seurat object with cell cycle scoring
-save(sobject2,file = file.path(dir,datafolder,paste0(Project(sobject),"_cellcycleregressed.RData")))
+save(sobject2,file = file.path(dir,datafolder,paste0(name,"_cellcycleregressed.RData")))
 ```
 
 
@@ -411,7 +451,7 @@ for (i in splitby){
   t = round(t*100,2)
   
   setEPS()
-  postscript(file.path(dir,paste0(Project(sobject),i,"barplot.eps")))
+  postscript(file.path(dir,"Plots",paste0(name,i,"barplot.eps")))
   barplot(t, main="Cluster composition by percent of celltype",
         xlab="Cluster", ylab = "% of cluster", ylim = c(0,100), col=cols,axisnames = T,
         width = .2,xlim = c(0,5),legend = rownames(t), space = 0.6,cex.names = 0.8,axis.lty = 1)
@@ -427,7 +467,7 @@ for (i in splitby){
  
 ```{r}
 clustercolumn = "seurat_clusters"
-samplecolumn = "age"
+samplecolumn = c("age","condition")
 ```
 
 ```{r}
