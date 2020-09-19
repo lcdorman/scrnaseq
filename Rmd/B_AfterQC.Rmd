@@ -239,7 +239,7 @@ sobject$celltypecluster = paste0(sobject$celltype,"-",sobject$seurat_clusters)
 
 Save the tree
 ```{r}
-Idents(sobject) = "celltypecluster"
+Idents(sobject) = column
 sobject= BuildClusterTree(sobject,dims = pcs)
 tree = sobject@tools$BuildClusterTree
 setEPS()
@@ -249,7 +249,7 @@ dev.off()
 ```
 Save the clustered dataset. Overwrite the existing, subset dataset. 
 
-```{r}
+```{r,eval = FALSE}
 save(sobject,file = file.path(dir,datafolder,filename))
 ```
 
@@ -288,7 +288,7 @@ for(feature in c(genes,features)){
 *Heatmap*
 
 First calculate DE genes for every cluster
-```{r,results = "hide"}
+```{r,results = "hide",eval = FALSE}
 Idents(sobject) = column
 markers_all <- FindAllMarkers(
     object = sobject,
@@ -298,7 +298,6 @@ markers_all <- FindAllMarkers(
     min.pct = 0.15, 
     logfc.threshold = 0.0
 )
-
 write.csv(markers_all,file = file.path(dir,"Spreadsheets",paste0(iterationname,"_all_markers.csv")))
 ```
 
@@ -343,7 +342,7 @@ DoHeatmap(
     object = sobject, 
     features = c(topgenes$gene),
     cells = names(newcellnames),
-    group.by = column,
+    group.by = "celltypecluster",
     size = 5,
     label = T,
     draw.lines = T
@@ -359,7 +358,7 @@ DoHeatmap(
     object = sobject, 
     features = c(topgenes$gene),
     cells = names(newcellnames),
-    group.by = column,
+    group.by = "celltypecluster",
     size = 5,
     label = T,
     draw.lines = T
@@ -379,12 +378,10 @@ if (all(keep %in% sobject$celltype)){
 }
 ```
 
-
 Conduct differential expression analysis on the celltypes (pooled)
 
 ```{r}
 column = "celltype"
-ncells = 500 #if you want to include all cells just set this really high
 ```
 
 ```{r}
@@ -401,7 +398,6 @@ write.csv(markers_all,file = file.path(dir,"Spreadsheets",paste0(iterationname,"
 
 ```{r}
 #read in a de gene file
-
 markers = read.csv(file.path(dir,"Spreadsheets",paste0(iterationname,"_celltype_markers.csv")),stringsAsFactors = F)
 
 #Select only the genes that pass thresholds
