@@ -50,6 +50,7 @@ m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
 
 #set up folders
 QCfolder = "QC"
+Plotfolder = "Plots"
 
 #This name needs to match your project name within the seurat object
 project<-"Microglia_BC" 
@@ -79,12 +80,18 @@ igenes = c("Cx3cr1","Rbfox3","Aldh1l1","Pecam1")
 dims = c("seurat_clusters","sample_description","age","condition")
 
 #the data file you want to open
-filename = "_Macrophages_subset.RData"
+filename = "Microglia_BC_Allcells_Macrophages_subset.RData"
+
+#edit to include all desired celltypes to subset on later
+keep = c(NULL)
+
+#make a unique name; maybe this is the celltype you've already subset, or the age you're looking at, etc. 
+iterationname = "Macrophage_only"
 ```
 
-Load in your filtered dataset
+Load in your subset dataset
 ```{r}
-load(file.path(dir,datafolder,paste0(project,filename)))
+load(file.path(dir,datafolder,filename))
 ```
 
 
