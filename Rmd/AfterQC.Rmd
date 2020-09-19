@@ -370,18 +370,17 @@ DoHeatmap(
 )
 ```
 
-Subset the data if necessary
+Subset the data if necessary; will only run if "keep" includes some celltype
 
 Subset the data to include only your celltypes of interest: 
 ```{r}
-if (keep != "all"){
+if (all(keep %in% sobject$celltype)){
   sobject = subset(sobject,subset = celltype %in% keep)
   #check the resulting subset
   table(sobject$celltype,sobject$seurat_clusters)
   #subset the object by the metadata column "celltype"
   save(sobject,file = file.path(dir,datafolder,paste0(project,"_",iterationname,"_",keep,"_subset.RData")))
 }
-
 ```
 
 
