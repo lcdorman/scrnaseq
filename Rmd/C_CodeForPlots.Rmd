@@ -31,6 +31,9 @@ filename = "Microglia_BC_Macrophages_subset.RData"
 organism = "Mouse"
 defile = "Macrophage_only_all_markers.csv"
 
+m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
+Plotfolder = "Plots"
+
 if(organism == "Mouse"){library(org.Mm.eg.db)}
 if(organism == "Human"){library(org.Hs.eg.db)}
 if(organism == "Zebrafish"){library(org.Dr.eg.db)}
@@ -367,10 +370,13 @@ save(sobject,file = file.path(dir,datafolder,filename)))
 
 
 You can regress out the phase genes
-```{r,eval = FAlSE}
+```{r}
 regress = c("S.Score","G2M.Score","nCount_RNA","percent.mito")
 columns = c("sample_description","seurat_clusters","celltypecluster","condition","age","Phase")
+```
 
+
+```{r,eval = FALSE}
 #run PCA on only the cell cycle genes
 sobject2 <- RunPCA(object = sobject, pc.genes = c(s.genes, g2m.genes), do.print = FALSE, maxit=10000)
 
@@ -496,9 +502,8 @@ for (i in 1:(ncol(all)-1)){
       array = rbind(array,out)
     }
   }
-  array = array[2:nrow(array),]
 }
-
+array = array[2:nrow(array),]
 array
 write.csv(array,file = file.path(dir,"Spreadsheets",paste0(name,"_contingency.csv")),row.names = T,quote = F)
 ```
