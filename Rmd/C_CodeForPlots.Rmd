@@ -467,31 +467,39 @@ for (i in splitby){
  
 ```{r}
 clustercolumn = "seurat_clusters"
-samplecolumn = c("age","condition")
+samplecolumn = c("sample_description")
 ```
 
 ```{r}
 all = table(sobject[[clustercolumn]][,1],sobject[[samplecolumn]][,1])
+array = as.data.frame(cbind("Cluster" = 1, "Sample1" = 1, "Sample2" = 1, "p-value" = 1, "Cramer's V" =1))
+for (i in 1:(ncol(all)-1)){
+  for (k in (i+1):ncol(all)){
+    partial = all[,c(i,k)]
+    total = colSums(partial)
+    clusters = rownames(partial)
+    test = list()
+    chi = chisq.test(partial)
 
-total = colSums(all)
-clusters = rownames(all)
-test = list()
-chi = chisq.test(all)
-
-for (cluster in clusters){
-  x = rbind(all[cluster,],total-all[cluster,])
-  rownames(x) = c(cluster,"total")
-  chi = chisq.test(x)
-  f = sqrt(chi$statistic/sum(x))
-  test[[cluster]] = chi
-  test[[cluster]]$f = f
+    for (cluster in clusters){
+      x = rbind(partial[cluster,],total-partial[cluster,])
+      rownames(x) = c(cluster,"total")
+      chi = chisq.test(x)
+      f = sqrt(chi$statistic/sum(x))
+      test[[cluster]] = chi
+      test[[cluster]]$f = f
+      
+      pval = test[[cluster]]$p.value
+      Cramer = sqrt(test[[cluster]]$statistic/sum(all[cluster,]))
+      out = c(cluster,colnames(partial),pval,Cramer)
+      #print out the p-value and cramer's v (closer to 1 = higher effect size) for each cluster
+      array = rbind(array,out)
+    }
+  }
+  array = array[2:nrow(array),]
 }
 
-#print out the p-value and cramer's v (closer to 1 = higher effect size) for each cluster
-for (cluster in clusters){
-  print(cluster)
-  print(test[[cluster]]$p.value) #p-value
-  print(sqrt(test[[cluster]]$statistic/sum(all[cluster,]))) #normalized by the number of cells in the cluster = cramer's v
-}
+array
+write.csv(array,file = file.path(dir,"Spreadsheets",paste0(name,"_contingency.csv")),row.names = T,quote = F)
 ```
  
