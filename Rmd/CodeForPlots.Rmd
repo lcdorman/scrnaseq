@@ -1,5 +1,5 @@
 ---
-title: "Extra DE and plots"
+title: "Plots"
 output: html_document
 ---
 
@@ -70,7 +70,6 @@ cluster1 = '0'
 cluster2 = "2"
 ```
 
-
 ```{r}
 Idents(sobject) = column
 markers = FindMarkers(sobject,
@@ -82,7 +81,6 @@ markers = FindMarkers(sobject,
                       test.use = "MAST")
 write.csv(markers,file.path(dir,paste0("markers_",cluster1,"_vs_",cluster2,".csv")))
 ```
-
 
 You can also make plots with only subsets of cells: Best for making umap plots where both conditions/individuals have equal representation. 
 ```{r}

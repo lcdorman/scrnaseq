@@ -71,7 +71,7 @@ sct = TRUE
 ngenes = 10000
 
 #Which principal components do you want to calculate on? This is a default setting, change if one of the pc's is for something you think is a technical error (i.e. HSP, RP, etc)
-pcs = 1:30
+pcs = c(1:30)
 
 #clustering resolution; the last number will be saved as "seurat_clusters" in metadata
 res = c(0.5,1.5,1.0)
@@ -150,7 +150,7 @@ if (!sct){
 ```
 
 Alternative: SCTransform (great for smaller datasets)
-```{r, results='hide'}
+```{r, results='hide',eval = FALSE}
 if (sct){
   sobject <- SCTransform(sobject, vars.to.regress = regress, verbose = FALSE,variable.features.n = ngenes,conserve.memory = T)
 }
@@ -247,8 +247,8 @@ postscript(file.path(dir,"Trees",paste0(project,"_tree_",iterationname,".eps")))
 plot.phylo(tree, use.edge.length = T, direction = "rightwards")
 dev.off()
 ```
-Save the clustered dataset. Overwrite the existing, subset dataset. 
 
+Save the clustered dataset. Overwrite the existing, subset dataset. 
 ```{r,eval = FALSE}
 save(sobject,file = file.path(dir,datafolder,filename))
 ```
@@ -301,6 +301,7 @@ markers_all <- FindAllMarkers(
 write.csv(markers_all,file = file.path(dir,"Spreadsheets",paste0(iterationname,"_all_markers.csv")))
 ```
 
+Make the heatmap
 ```{r}
 #read in a de gene file
 markers = read.csv(file.path(dir,"Spreadsheets",paste0(iterationname,"_all_markers.csv")),stringsAsFactors = F)
@@ -374,12 +375,11 @@ if (all(keep %in% sobject$celltype)){
   #check the resulting subset
   table(sobject$celltype,sobject$seurat_clusters)
   #subset the object by the metadata column "celltype"
-  save(sobject,file = file.path(dir,datafolder,paste0(project,"_",iterationname,"_",keep,"_subset.RData")))
+  save(sobject,file = file.path(dir,datafolder,paste0(project,"_",keep,"_subset.RData")))
 }
 ```
 
 Conduct differential expression analysis on the celltypes (pooled)
-
 ```{r}
 column = "celltype"
 ```
