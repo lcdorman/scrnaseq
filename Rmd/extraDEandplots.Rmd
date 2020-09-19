@@ -9,33 +9,27 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 #install.packages("BiocManager")
-
 #BiocManager::install("Seurat")
 #BiocManager::install("ggplot2")
 #BiocManager::install("sctransform")
 
 library(Seurat)
 library(ggplot2)
-library(sctransform)
 library(dplyr)
 library(ape)
-library(variancePartition)
 library(cowplot)
 library(Matrix)
-library(magrittr)
 
 #find out where you are
 getwd()
 
 #Specify where your matrix files are
 dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/"
-```
-
-```{r}
+datafolder = "Data/Seurat"
 filename = "sobject.RData"
-load(file = file.path(dir,"Data/Seurat",filename))
+organism = "Mouse"
+defile = "allmarkers_vargenesMG_0501.csv"
 ```
-
 
 Other differential expression methods: 
 
@@ -43,7 +37,10 @@ Other differential expression methods:
 ```{r}
 base = '0'                 #default cluster
 column = "seurat_clusters" #can pick any metadata column
+```
 
+
+```{r}
 Idents(sobject) = column
 clusters = levels(sobject@meta.data[,column]) 
 
@@ -70,9 +67,11 @@ column = "seurat_clusters"
 #default cluster
 cluster1 = '0'    
 #cluster of interest
-cluster2 = "2" 
+cluster2 = "2"
+```
 
 
+```{r}
 Idents(sobject) = column
 markers = FindMarkers(sobject,
                       ident.1=cluster1,
@@ -82,65 +81,6 @@ markers = FindMarkers(sobject,
                       min.pct = 0.1,
                       test.use = "MAST")
 write.csv(markers,file.path(dir,paste0("markers_",cluster1,"_vs_",cluster2,".csv")))
-```
-
-You can make a heatmap only including certain genes/cells: 
-
-```{r}
-#read in a de gene file
-markers = read.csv("singlemarkersMG_0501.csv",stringsAsFactors = F)
-
-#establish cutoffs
-pval = 1e-8 #max p-value for significance
-lfc = 0.2 #minimum log fold change
-minpct = 0.3 #if you want to subset by percent cells in that cluster expressing the gene
-maxpct = 0.7
-single = F #should each gene be a marker of a single cluster only
-ngenes = 3 #how many genes should be in the heatmap per cluster
-ncells = 500 #max # of cells per heatmap column
-column = "finalclusters" #division you care about
-
-markers = markers[markers$p_val_adj<pcut,]
-markers = markers[markers$avg_logFC > lfc,] #pick only positives, or restrict by min/max pct expression using pct1/2
-
-#If you want, select markers that define a single cluster
-if (single){markers <- markers[markers$gene %in% names(table(markers$gene))[table(markers$gene) == 1],] }
-
-table(markers$cluster)
-
-topgenes <- markers %>% group_by(cluster) %>% top_n(ngenes, avg_logFC)
-topgenes = topgenes[order(topgenes$cluster),]
-topgenes$gene
-
-#Subset each cluster to ncells
-cellnames = sobject@meta.data[,column]
-names(cellnames) = colnames(sobject)
-clusters = levels(cellnames)
-newcellnames = NULL
-for (cluster in clusters){
-  n = length(cellnames[cellnames == cluster])
-  if (n > ncells){n = ncells}
-  newcluster = sample(cellnames[cellnames == cluster],n, replace = F)
-  newcellnames = c(newcellnames,newcluster)
-}
-
-#check
-table(newcellnames)
-
-#Make heatmap
-setEPS()
-postscript(file.path(dir,paste0(column,"_",pval,"_ncells",ncells,"heatmap.eps")))
-DoHeatmap(
-    object = sobject, 
-    features = c(topgenes$gene),
-    cells = names(newcellnames),
-    group.by = column,
-    size = 5,
-    label = T,
-    draw.lines = T
-)
-
-dev.off()
 ```
 
 
@@ -154,7 +94,10 @@ features = c("")
 categories = c("")
 name = "equalcells"
 dir = ""
+```
 
+
+```{r}
 table(sobject$sample_description)
 cellnames = sobject@meta.data[,column]
 names(cellnames) = colnames(sobject)
@@ -192,6 +135,10 @@ You can save umap and pc embeddings to load into other programs like Loupe and a
 ```{r}
 #Edit name only if one project has multiple embeddings
 name = Project(sobject)
+```
+
+
+```{r}
 #Save umap embeddings
 umap = sobject@reductions$umap@cell.embeddings
 umap$Cellname = rownames(umap)
@@ -206,13 +153,9 @@ write.csv(pc,file = file.path(dir,paste0(name,"_pc_embed.csv"),row.names = F))
 meta = sobject@meta.data
 meta$gene = rownames(meta)
 write.csv(pc,file = file.path(dir,paste0(name,"_metadata.csv"),row.names = F))
-```
 
-For PanoView (in Python, a way to mathematically validate # of clusters found)
-```{r}
+#For PanoView (in Python, a way to mathematically validate # of clusters found)
 annotation = sobject$sample_description #or any column
-
-name = Project(sobject)
 x = as.matrix(GetAssayData(sobject,slot = "counts"))
 x = x[rownames(x) %in% VariableFeatures(sobject),]
 
@@ -222,31 +165,28 @@ write.csv(annotation,file = file.path(dir,paste0(name,"_annotation.csv")))
 
 You can add annotations from the annotationDB database: 
 ```{r}
-organism = "mouse"
+de = read.csv(file.path(dir,"Spreadsheets",defile),stringsAsFactors = F) #any spreadsheet with gene symbols or other identifiers
+```
 
-if (organism %in% c("Mouse","mouse","mus musculus","Mus musculus","Mm")){db = org.Mm.eg.db}
-if (organism %in% c("Human","human","homo sapiens","Homo sapiens","Hs")){db = org.Hs.eg.db}
-if (organism %in% c("Zebrafish","zebrafish","danio rerio","Danio rerio","Dr")){db = org.Dr.eg.db}
+```{r}
+if (organism == "Mouse"){db = org.Mm.eg.db}
+if (organism == "Human"){db = org.Hs.eg.db}
+if (organism == "Zebrafish"){db = org.Dr.eg.db}
 
-fc = read.csv("../Spreadsheets/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F) #any spreadsheet with gene symbols or other identifiers
-ids=fc$gene 
+de = read.csv(file.path(dir,"Spreadsheets",filename),stringsAsFactors = F) #any spreadsheet with gene symbols or other identifiers
+ids=de$gene 
 fromKey="SYMBOL" #must match the ids - could also be ensembl ID
 toKey=c("GENENAME","ENSEMBL","UNIPROT") #whatever annotation you want to add - find with keytypes(db)
 selRes<-AnnotationDbi::select(db,keys=ids,keytype=fromKey,columns=c(fromKey,toKey))
 
 x=selRes[match(ids,selRes[,1]),1:(length(toKey)+1)]
-identical(x$SYMBOL,fc$gene)
-fc$GeneName = x$GENENAME
-fc$Ensembl = x$ENSEMBL
-fc$Uniprot = x$UNIPROT
+identical(x$SYMBOL,de$gene)
+de$GeneName = x$GENENAME
+de$Ensembl = x$ENSEMBL
+de$Uniprot = x$UNIPROT
 ```
 
-
-Volcano Plot: 
-```{r}
-de = read.csv("../Spreadsheets/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F)
-colnames(fc)[8] = "Gene"
-```
+*Volcano Plot*
 
 Set your parameters
 ```{r}
@@ -304,7 +244,7 @@ Make and save the plots for each cluster
   
 ```{r}
 setEPS()
-postscript(file.path(dir,paste0("plots_Volcano_",category,".eps")))
+postscript(file.path(dir,"Plots",paste0("Volcano_",category,".eps")))
 EnhancedVolcano(fc,
                 lab = fc$Gene,
                 x = 'avg_logFC',
@@ -357,15 +297,12 @@ Cell cycle regression specifically for mouse genes right now - can adjust slight
 ```{r}
 cc.genes <- readLines(con = "../Spreadsheets/regev_lab_cell_cycle_genes.txt")
 genesofinterest = c("Pcna","Top2a","Mcm6","Mki67")
-if (organism %in% c("Mouse","mouse","mus musculus","Mus musculus","Mm")){org = "M"}
-if (organism %in% c("Human","human","homo sapiens","Homo sapiens","Hs")){org = "H"}
-if (organism %in% c("Zebrafish","zebrafish","danio rerio","Danio rerio","Dr")){org = "Z"}
 
 #for zebrafish and mice, change gene names to lowercase
-if (org %in% c("Z","M")){cc.genes<-tolower(cc.genes)}
+if (organism %in% c("Zebrafish","Mouse")){cc.genes<-tolower(cc.genes)}
 
 #for mice, capitalize the first letter of each gene
-if (org == "M"){
+if (organism == "Mouse"){
   cc.genes<-unname(sapply(cc.genes,function(x){
     x<-paste0(toupper(substr(x,start = 1,stop = 1)),substring(x,first=2))
     }))
@@ -391,14 +328,12 @@ DimPlot(sobject,group.by = "Phase")
 dev.off()
 
 #save seurat object with cell cycle scoring
-save(sobject,file = file.path(dir,paste0(Project(sobject),".RData")))
+save(sobject,file = file.path(dir,datafolder,paste0(project,"_cellcycle.RData")))
 ```
 
 
 You can regress out the phase genes
 ```{r}
-add.genes = c('Fcrls', 'Olfml3', 'Lgmn', 'Cx3cr1','Hexb')
-remove.genes = c('Xist', 'Gm47283', 'Ddx3y', 'Eif2s3y', 'Tsix', 'Uty', 'AC149090.1PC_ 1')
 regress = c("S.Score","G2M.Score","nCount_RNA","percent.mito")
 columns = c("sample_description","seurat_clusters","finalclusters","condition","age","Phase")
 
@@ -412,16 +347,11 @@ PCAPlot(object = sobject2)
 PCAPlot(object = sobject)
 
 #regress out cell cycle variables
-var.genes = c(VariableFeatures(sobject2),add.genes)
-var.genes = var.genes[!var.genes %in% remove.genes]
-
-VariableFeatures(sobject2) = var.genes
-
-sobject2 <- ScaleData(object = sobject2, features = var.genes, vars.to.regress = regress)
+sobject2 <- ScaleData(object = sobject2, features = VariableFeatures(sobject), vars.to.regress = regress)
 
 # Now, a PCA on the variable genes no longer returns components associated
 # with cell cycle
-sobject2 <- RunPCA(object = sobject2, features = var.genes, genes.print = 10)
+sobject2 <- RunPCA(object = sobject2, features = VariableFeatures(sobject), genes.print = 10)
 PCAPlot(object = sobject2)
 
 #remake umap with new calculations without cell cycle
@@ -435,6 +365,9 @@ sobject2<-FindClusters(sobject2,verbose=F,resolution = 0.5)
 for (column in columns){
   print(DimPlot(object = sobject2, group.by=column, pt.size=0.5,label = T))
 }
+
+#save seurat object with cell cycle scoring
+save(sobject2,file = file.path(dir,datafolder,paste0(Project(sobject),"_cellcycleregressed.RData")))
 ```
 
 
@@ -447,10 +380,12 @@ samplecolumn = "sample_description"
 #pick a reasonable number of cells per sample to normalize by
 ncells = 2000 
 cols = c("blue","red")
-
 #If you want to only compare particular samples/conditions, split further by another metadata column: 
 split = "age"
+```
 
+
+```{r}
 splitby = levels(as.factor(sobject[[split]][,1]))
 
 #Make a table and normalize
@@ -483,8 +418,6 @@ for (i in splitby){
         width = .2,xlim = c(0,5),legend = rownames(t), space = 0.6,cex.names = 0.8,axis.lty = 1))
 
 }
-
-
 ```
 
  Contingency tables for barplots. Note that this makes more sense if done with only 2 samples, as only one statistic will be calculated per cluster. 
@@ -492,15 +425,15 @@ for (i in splitby){
 ```{r}
 clustercolumn = "seurat_clusters"
 samplecolumn = "age"
+```
 
-
+```{r}
 all = table(sobject[[clustercolumn]][,1],sobject[[samplecolumn]][,1])
 
 total = colSums(all)
 clusters = rownames(all)
 test = list()
 chi = chisq.test(all)
-
 
 for (cluster in clusters){
   x = rbind(all[cluster,],total-all[cluster,])
