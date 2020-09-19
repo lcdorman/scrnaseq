@@ -287,7 +287,7 @@ minpct = 0 #if you want to subset by percent cells in that cluster expressing th
 maxpct = 1
 single = F #should each gene be a marker of a single cluster only
 ngenes = 3 #how many genes should be in the heatmap per cluster
-ncells = 500 #max # of cells per heatmap column
+ncells = 100 #max # of cells per heatmap column
 column = "celltypecluster" #division you care about
 ```
 
@@ -328,7 +328,7 @@ topgenes = topgenes[order(topgenes$cluster),]
 #Subset each cluster to ncells
 cellnames = sobject@meta.data[,column]
 names(cellnames) = colnames(sobject)
-clusters = levels(cellnames)
+clusters = levels(as.factor(cellnames))
 newcellnames = NULL
 for (cluster in clusters){
   n = length(cellnames[cellnames == cluster])
