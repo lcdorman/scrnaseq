@@ -74,7 +74,7 @@ ngenes = 10000
 pcs = c(1:30)
 
 #clustering resolution; the last number will be saved as "seurat_clusters" in metadata
-res = c(0.5,1.5,1.0)
+res = c(0.5,1.5,1.0,0.1)
 
 #Important genes to determine your cells of interest
 igenes = c("Cx3cr1","Rbfox3","Aldh1l1","Pecam1")
@@ -343,7 +343,7 @@ DoHeatmap(
     object = sobject, 
     features = c(topgenes$gene),
     cells = names(newcellnames),
-    group.by = "celltypecluster",
+    group.by = column,
     size = 5,
     label = T,
     draw.lines = T
@@ -359,7 +359,7 @@ DoHeatmap(
     object = sobject, 
     features = c(topgenes$gene),
     cells = names(newcellnames),
-    group.by = "celltypecluster",
+    group.by = column,
     size = 5,
     label = T,
     draw.lines = T
@@ -382,6 +382,7 @@ if (all(keep %in% sobject$celltype)){
 Conduct differential expression analysis on the celltypes (pooled)
 ```{r}
 column = "celltype"
+ncells = 500
 ```
 
 ```{r}
@@ -393,12 +394,12 @@ markers_all = FindAllMarkers(
   only.pos = FALSE, 
   min.pct = 0.15, 
   logfc.threshold = 0.0)
-write.csv(markers_all,file = file.path(dir,"Spreadsheets",paste0(iterationname,"_celltype_markers.csv")))
+write.csv(markers_all,file = file.path(dir,"Spreadsheets",paste0(iterationname,"_",column,"_markers.csv")))
 ```
 
 ```{r}
 #read in a de gene file
-markers = read.csv(file.path(dir,"Spreadsheets",paste0(iterationname,"_celltype_markers.csv")),stringsAsFactors = F)
+markers = read.csv(file.path(dir,"Spreadsheets",paste0(iterationname,"_",column,"_markers.csv")),stringsAsFactors = F)
 
 #Select only the genes that pass thresholds
 markers = markers[markers$p_val_adj<pval,]
