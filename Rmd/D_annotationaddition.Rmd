@@ -30,20 +30,17 @@ foldchange = 1.15
 
 ```{r}
 de = read.csv(file.path(dir,"Spreadsheets",genefilename),stringsAsFactors = F)
-#genes = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F)
+
 peaks = read.csv(file.path(dir,"Spreadsheets",peaksfilename),stringsAsFactors = F)
-#peaks = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/MergedpeaksPBSAnnotated_v2.csv",stringsAsFactors = F)
-barres = read.csv(file.path(dir,"Spreadsheets",specfilename),stringsAsFactors = F)
-#barres = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/barreslab_rnaseq.csv",stringsAsFactors = F)
+
+#barres = read.csv(file.path(dir,"Spreadsheets",specfilename),stringsAsFactors = F)
+barres = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/barreslab_rnaseq.csv",stringsAsFactors = F)
 
 ratio = read.csv(file.path(dir,"Spreadsheets",velocityfilename),header = F)
-#ratio = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/spliced_unspliced_ratio.csv",stringsAsFactors = F,header = F)
 
 velocitygenes = read.csv(file.path(dir,"Spreadsheets",velocitygenefile),stringsAsFactors = F)
-#velocitygenes = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/splicegenes.csv",stringsAsFactors = F)
 
 cellphonedb = read.csv(file.path(dir,"Spreadsheets",cellphonedbfile),stringsAsFactors = F)
-#cellphonedb = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/significant_means.csv",stringsAsFactors = F)
 ```
 
 Determine "cells of interest" for calculating cell type specificity in barres dataset. only change "coi"
