@@ -47,6 +47,8 @@ impclusters = c(3,4,5,8)
 #Try to keep consistent throughout analysis
 alpha = 1e-25
 foldchange = 1.15
+
+regress = c("nCount_RNA","percent.mito")
 ```
 Load in your filtered dataset
 ```{r}
@@ -68,6 +70,18 @@ other = c(3:(coi-1),(coi+1):9)
 ```
 
 *Use the barres annotation to remove non-cell-specific mRNA and recluster*
+
+This function will calculate a Cell Type specificity by dividing the fpkm for your cell type by the average fpkm for all other cell types.
+```{r}
+for (i in 1:nrow(barres)){
+  row = barres[i,]
+  mspec = as.numeric(row[coi])/mean(as.numeric(row[other]),na.rm = T)
+  barres[i,10] = mspec
+}
+colnames(barres)[10] = "Specificity"
+```
+
+
 Find specificity distribution
 
 ```{r}
@@ -90,19 +104,17 @@ dim(barres_sobject)
 
 genes_remove = barres_sobject$Gene.symbol
 VariableFeatures(sobject) = VariableFeatures(sobject)[!VariableFeatures(sobject) %in% genes_remove]
+var.genes = VariableFeatures(sobject)
 ```
 
 Renormalize/recalculate sobject
-```{r}
-var.genes = VariableFeatures(sobject)
-regress = c("nCount_RNA","percent.mito")
+```{r,eval = F}
 sobject<-ScaleData(sobject,features = var.genes, vars.to.regress = regress)
 ```
 
 Run PCA analysis
 ```{r}
 sobject <- RunPCA(sobject,features = var.genes,npcs = 50, verbose = FALSE)
-
 ElbowPlot(sobject,ndims = 50, reduction = "pca")
 print(sobject[["pca"]], dims = 1:20, nfeatures = 5)
 ```
@@ -124,7 +136,7 @@ b[1:30,]
 ```
 
 ```{r}
-DimPlot(sobject,cells.highlight = names(sobject$finalclusters)[sobject$finalclusters == '3'])
+DimPlot(sobject,cells.highlight = names(sobject$celltypecluster)[sobject$celltypecluster == 'Microglia-3'])
 ```
 Save pcs and gene list for scvelo
 
