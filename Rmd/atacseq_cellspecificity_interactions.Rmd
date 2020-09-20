@@ -34,7 +34,7 @@ de = read.csv(file.path(dir,"Spreadsheets",genefilename),stringsAsFactors = F)
 peaks = read.csv(file.path(dir,"Spreadsheets",peaksfilename),stringsAsFactors = F)
 
 #barres = read.csv(file.path(dir,"Spreadsheets",specfilename),stringsAsFactors = F)
-barres = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/barreslab_rnaseq.csv",stringsAsFactors = F)
+barres = read.csv("https://raw.githubusercontent.com/lcdorman/scrnaseq/master/Spreadsheets/barreslab_rnaseq.csv",stringsAsFactors = F)
 
 ratio = read.csv(file.path(dir,"Spreadsheets",velocityfilename),header = F)
 

@@ -9,6 +9,64 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## R Markdown
 
+Load in files
+```{r}
+#install.packages("BiocManager")
+#BiocManager::install("Seurat")
+#BiocManager::install("ggplot2")
+#BiocManager::install("sctransform")
+
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+library(ape)
+library(cowplot)
+library(Matrix)
+library(EnhancedVolcano)
+library(knitr)
+library(readr)
+
+#find out where you are
+getwd()
+```
+
+```{r}
+name = "LDAVMO2_Trial"
+#Specify where your matrix files are
+dir= "~/Desktop/Sequencing/LD_AVM02/"
+datafolder = "Data/Seurat"
+filename = "Microglia_BC_Macrophages_subset.RData"
+specfilename = "barreslab_rnaseq.csv" #courtesy of https://brainrnaseq.org
+organism = "Mouse"
+defilename = "Macrophage_only_all_markers.csv"
+cellcyclefile = "https://raw.githubusercontent.com/lcdorman/scrnaseq/master/Spreadsheets/regev_lab_cell_cycle_genes.csv"
+
+#pick the clusters you care about
+impclusters = c(3,4,5,8)
+
+#Try to keep consistent throughout analysis
+alpha = 1e-25
+foldchange = 1.15
+```
+Load in your filtered dataset
+```{r}
+load(file.path(dir,datafolder,filename))
+```
+
+```{r}
+de = read.csv(file.path(dir,"Spreadsheets",defilename),stringsAsFactors = F)
+
+#barres = read.csv(file.path(dir,"Spreadsheets",specfilename),stringsAsFactors = F)
+barres = read.csv("https://raw.githubusercontent.com/lcdorman/scrnaseq/master/Spreadsheets/barreslab_rnaseq.csv",stringsAsFactors = F)
+```
+
+Determine "cells of interest" for calculating cell type specificity in barres dataset. only change "coi"
+```{r}
+colnames(barres)
+coi = 8
+other = c(3:(coi-1),(coi+1):9)
+```
+
 *Use the barres annotation to remove non-cell-specific mRNA and recluster*
 Find specificity distribution
 
@@ -38,7 +96,6 @@ Renormalize/recalculate sobject
 ```{r}
 var.genes = VariableFeatures(sobject)
 regress = c("nCount_RNA","percent.mito")
-
 sobject<-ScaleData(sobject,features = var.genes, vars.to.regress = regress)
 ```
 
@@ -58,9 +115,7 @@ sobject<-FindNeighbors(sobject,dims=pcs,verbose=F)
 
 res = 0.5 #set this to anything
 sobject<-FindClusters(sobject,verbose=F,resolution = res) 
-
 ```
-
 
 ```{r}
 b = barres[barres$Gene.symbol %in% var.genes,]
@@ -70,19 +125,23 @@ b[1:30,]
 
 ```{r}
 DimPlot(sobject,cells.highlight = names(sobject$finalclusters)[sobject$finalclusters == '3'])
-
 ```
 Save pcs and gene list for scvelo
 
 ```{r}
 pcs = sobject@reductions$pca@cell.embeddings
 pcs = cbind("Cellname" = rownames(pcs), pcs)
-write.csv(pcs, file = "~/Desktop/Jupyter/mgAVM02/pcs_noneuronal.csv",row.names = F)
+write.csv(pcs, file = file.path(dir,"Spreadsheets",paste0(Project(sobject),"pcs_noneuronal.csv")),row.names = F)
 ```
+
 ```{r}
 genes = as.data.frame(VariableFeatures(sobject))
 colnames(genes) = "Genes"
-write.csv(genes, file = "~/Desktop/Jupyter/mgAVM02/genes_noneuronal.csv",row.names = F)
+write.csv(genes, file = file.path(dir,"Spreadsheets",paste0(Project(sobject),"genes_noneuronal.csv")),row.names = F)
 ```
 
+Save object
+```{r,eval = F}
+save(sobject,file = file.path(dir,datafolder,paste0(Project(sobject),"_microgliaspecificgenesonly.RData")))
+```
 
