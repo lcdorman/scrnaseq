@@ -29,7 +29,7 @@ foldchange = 1.15
 ```
 
 ```{r}
-genes = read.csv(file.path(dir,"Spreadsheets",genefilename),stringsAsFactors = F)
+de = read.csv(file.path(dir,"Spreadsheets",genefilename),stringsAsFactors = F)
 #genes = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/allmarkers_vargenesMG_0501.csv",stringsAsFactors = F)
 peaks = read.csv(file.path(dir,"Spreadsheets",peaksfilename),stringsAsFactors = F)
 #peaks = read.csv("https://github.com/lcdorman/scrnaseq/blob/master/MergedpeaksPBSAnnotated_v2.csv",stringsAsFactors = F)
@@ -57,7 +57,7 @@ Load file with differentially expressed genes
 
 ```{r}
 #remove excess columns
-genes = genes[,3:ncol(genes)]
+genes = de[,3:ncol(de)]
 head(genes)
 
 #remove genes that don't pass a threshold for p-value and log fold change
@@ -276,7 +276,6 @@ dev.off()
 Volcano Plot: 
 
 ```{r}
-de = genes
 newlist = list()
 
 #Split by cluster
