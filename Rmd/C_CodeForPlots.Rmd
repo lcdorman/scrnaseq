@@ -330,6 +330,7 @@ Cell cycle regression specifically for mouse genes right now - can adjust slight
 
 ```{r}
 cc.genes <- readLines(con = "../Spreadsheets/regev_lab_cell_cycle_genes.txt")
+cc.genes <- read.delim("https://github.com/lcdorman/scrnaseq/blob/master/Spreadsheets/regev_lab_cell_cycle_genes.txt")
 genesofinterest = c("Pcna","Top2a","Mcm6","Mki67")
 
 #for zebrafish and mice, change gene names to lowercase
