@@ -1,41 +1,70 @@
-#Find out how many of your DE genes are part of the matrisome (http://matrisomeproject.mit.edu/)
+---
+title: "matrisome"
+output: html_document
+---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Find out how many of your DE genes are part of the matrisome (http://matrisomeproject.mit.edu/)
+
+```{r}
 library(readr)
 library(Seurat)
 library(dplyr)
+dir = "~/Desktop/Sequencing/LD_AVM02"
+datafolder = "Data/Seurat"
+filename = "mgAVM02_may26.RData"
+public = F #set to T if using public datasets, edit de_path and m_path
+```
 
-#You will need to add your own data here (note to Leah - put this on GEO so it can be loaded)
-seurat_path = file.path("~/Desktop/Sequencing/LD_AVM02/Data/Seurat/mgAVM02_may26.RData")
-load(path)
-
-#rename whatever seurat object you have as "sobject"
-sobject = mgAVM02
-
-#set thresholds for DE genes per cluster
+Set thresholds for DE genes per cluster
+```{r}
 alpha = 1e-25
 foldchange = 0.2
+```
 
-#if public
-#de_path = "https://github.com/lcdorman/scrnaseq/blob/master/allmarkers_vargenesMG_0501.csv"
-#m_file = "https://github.com/lcdorman/scrnaseq/blob/master/matrisome_mm_masterlist.csv"
+You will need to add your own data here (note to Leah - put this on GEO so it can be loaded). Rename whatever seurat object you have as "sobject"
+```{r}
+load(file.path(dir,datafolder,filename))
+sobject = mgAVM02
+```
 
-#if private
-m_file = "matrisome_mm_masterlist.csv"
-de_file = "allmarkers_vargenesMG_0501.csv"
 
-#Read in matrisome file
+```{r}
+if (public){
+  de_path = "https://github.com/lcdorman/scrnaseq/blob/master/allmarkers_vargenesMG_0501.csv"
+  m_file = "https://github.com/lcdorman/scrnaseq/blob/master/matrisome_mm_masterlist.csv"
+}
+if (!public){
+  m_file = file.path(dir,"Spreadsheets","matrisome_mm_masterlist.csv")
+  de_file = file.path(dir,"Spreadsheets","Macrophage_only_all_markers.csv")
+}
+```
+
+Read in matrisome file
+```{r}
 matrisome <- read.csv(m_file,stringsAsFactors = F,fill = T)
 matrisome$Category = as.factor(matrisome$Category)
 matrisome$Division = as.factor(matrisome$Division)
+```
 
-#show matrisome summary
+Show matrisome summary
+```{r}
 table(matrisome$Division,matrisome$Category)
+```
 
-#Read in DE genes file
+Read in DE genes file
+```{r}
 de = read.csv(de_file,stringsAsFactors = F,fill = T)
 de$cluster = as.factor(de$cluster)
+```
 
-#Select only the genes that have been used for clustering in sobject
+Select only the genes that have been used for clustering in sobject
+```{r}
 genes = rownames(GetAssayData(sobject,slot = "scale.data"))
 all(de$gene %in% genes)
 
@@ -59,9 +88,9 @@ clusters = levels(de$cluster)
 ecmlist = {}
 for (cluster in clusters){
   gup = deup[deup$cluster == cluster,"gene"]
-  gupecm = mall[mall$Gene.Symbol %in% gup,]
+  gupecm = matrisome[matrisome$Gene.Symbol %in% gup,]
   gdown = dedown[dedown$cluster == cluster,"gene"]
-  gdownecm = mall[mall$Gene.Symbol %in% gdown,]
+  gdownecm = matrisome[matrisome$Gene.Symbol %in% gdown,]
   ecmlist[[cluster]][["up"]] = gupecm
   ecmlist[[cluster]][["down"]] = gdownecm
 }
@@ -69,13 +98,14 @@ for (cluster in clusters){
 str(ecmlist,max.level = 2) 
 table(deup$cluster)
 table(dedown$cluster)
+```
 
-#Make a graph showing ecm content for each cluster, up and down
+Make a graph showing ecm content for each cluster, up and down
+```{r}
 up = table(deup$cluster)
 down = table(dedown$cluster)
 ecmup = rep(0,length(up))
 ecmdown = rep(0,length(down))
-
 
 t = rbind(up,ecmup,"rup" = ecmup,down,ecmdown,"rdown" = ecmdown)
 
@@ -93,24 +123,30 @@ t = cbind(t,"average" = rowMeans(t,na.rm = T))
 
 #pull out exactly what you want to plot
 p = t[c("rdown","rup"),]
+```
 
-#actually make a bargraph of t$rup and t$rdown
+Make a bargraph of t$rup and t$rdown
+
+```{r}
 setEPS()
-postscript("barplot_matrisome_updown.eps")
+postscript(file.path(dir,"Plots",paste0(Project(sobject),"_barplot_matrisome_updown.eps")))
 barplot(p, horiz = F, las=1, xlim = c(0,30),xlab = "cluster", ylab = '% matrisome associated',
         beside=T, col=c('blue','red'),ylim = c(0,30),legend = c("downregulated","upregulated"),axis.lty = 1)
 dev.off()
 
-#print out important gene lists (or replace "m" with clusterlevels)
+barplot(p, horiz = F, las=1, xlim = c(0,30),xlab = "cluster", ylab = '% matrisome associated',
+        beside=T, col=c('blue','red'),ylim = c(0,30),legend = c("downregulated","upregulated"),axis.lty = 1)
+
+```
+
+Print out important gene lists (or replace "m" with clusterlevels)
+```{r}
 imp = c()
+```
 
-#To select specific clusters
-clusters = c('3','4','5','8','9')
-
-#To select all clusters
-clusters = levels(de$cluster)
-
-#Make a table that could be printed (from a list)
+Make a table that could be printed (from a list)
+```{r}
+options(width = 1000)
 for (cluster in clusters){
   lu = ecmlist[[cluster]][["up"]][,1:3]
   ld = ecmlist[[cluster]][["down"]][,1:3]
@@ -125,7 +161,7 @@ for (cluster in clusters){
   imp = rbind(imp,l)
 }
 
-write.csv(imp,file = "ecmlist.csv")
-
-
+imp
+write.csv(imp,file = file.path(dir,"Spreadsheets",paste0(Project(sobject),"_ecmlist.csv")))
+```
 
