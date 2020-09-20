@@ -47,7 +47,7 @@ QCfolder = "QC"
 Plotfolder = "Plots"
 
 #the data file you want to open
-filename = "Microglia_BC_Allcells_Macrophages_subset.RData"
+filename = "Microglia_BC_Macrophages_subset.RData"
 
 #This name needs to match your project name within the seurat object
 project<-"Microglia_BC" 
@@ -97,6 +97,9 @@ single = F #should each gene be a marker of a single cluster only
 ngenes = 3 #how many genes should be in the heatmap per cluster
 ncells = 100 #max # of cells per heatmap column
 column = "celltypecluster" #division you care about
+
+#Variance partition: Remove genes only associated with a technical variable or sex of the mouse
+variance = T
 ```
 
 
@@ -131,9 +134,11 @@ PrintSeuratGraph = function(namecard = "a",seurat_object = sobject,graphtype = "
 }
 ```
 
+
+
 Find variable features, normalize, scale, run PCA, clustering, umap
 The following is the standard method of normalization and scaling. Interchangeable with the next chunk. Run both, you should have already specified which to use with "sct = T or F". Will take 5-20 minutes to run. 
-```{r}
+```{r,results = 'hide',eval = FALSE}
 if (!sct){
   sobject <- NormalizeData(sobject,normalization.method = "LogNormalize", scale.factor = 10000)
   sobject<-FindVariableFeatures(sobject, selection.method = "vst", nfeatures = ngenes)
@@ -163,9 +168,96 @@ plot1 = VariableFeaturePlot(sobject)
 LabelPoints(plot=plot1, points = labels, repel = F, xnudge = 0.1, ynudge = 0.5)
 ```
 
+Run "Variance Partition" - this will remove the genes most associated with sex (you can choose any column)
+
+Takes a really long time if you load all genes
+Individual and Tissue are both categorical,so model them as random effects; Note the syntax used to specify random effects
+
+```{r,results= "hide",eval = FALSE}
+if (variance){
+  library(variancePartition)
+  var.genes<-VariableFeatures(sobject)
+  geneExpr = GetAssayData(sobject,slot = "data")
+  geneExpr = as.matrix(geneExpr[rownames(geneExpr)%in% var.genes,])
+  geneExpr = geneExpr[rowSums(geneExpr)>0,]
+  info = sobject@meta.data
+  info$nCount_RNA = info$nCount_RNA/sums(info$nCount_RNA)
+  form <- ~ percent.mito + percent.ribo + nCount_RNA + (1|sex) + (1|age) + (1|condition)
+  varPart <- fitExtractVarPartModel(geneExpr, form, info )
+  varPartSave = as.data.frame(varPart)
+  write.csv(varPartSave,file = file.path(dir,"Spreadsheets",paste0(Project(sobject),"_variancepartition.csv")))
+}
+```
+
+```{r}
+varPart = read.csv(file.path(dir,"Spreadsheets",paste0(Project(sobject),"_variancepartition.csv")),stringsAsFactors = F,row.names = 1)
+```
+
+```{r}
+if (variance){
+  library(variancePartition)
+  # sort variables (i.e. columns) by median fraction of variance explained
+  vp <- sortCols(varPart )
+  
+  #order on each column
+  vs = varPart[order(varPart$sex,decreasing = T),]
+  vm = varPart[order(varPart$percent.mito,decreasing = T),]
+  #vr = varPart[order(varPart$percent.ribo,decreasing = T),]
+  vc = varPart[order(varPart$nCount_RNA,decreasing = T),]
+  
+  # Bar plot of variance fractions for the first 10 genes
+  print(plotVarPart(varPart))
+  print(plotPercentBars( vm[1:50,] ))
+  print(plotPercentBars( vs[1:50,] ))
+  #plotPercentBars( vr[1:50,] )
+  print(plotPercentBars( vc[1:50,] ))
+  
+        
+  # violin plot of contribution of each variable to total variance
+  setEPS()
+  postscript(file.path(dir,"QC",paste0(project,"vln_variance.eps")))
+  print(plotVarPart(varPart))
+  dev.off()
+  
+  setEPS()
+  postscript(file.path(dir,"QC",paste0(project,"sex_variance.eps")))
+  print(plotPercentBars( vs[1:50,] ))
+  dev.off()
+  
+  setEPS()
+  postscript(file.path(dir,"QC",paste0(project,"mito_variance.eps")))
+  print(plotPercentBars( vm[1:50,] ))
+  dev.off()
+  
+  #setEPS()
+  #postscript(file.path(dir,"QC",paste0(project,"ribo_variance.eps")))
+  #print(plotPercentBars( vr[1:50,] ))
+  #dev.off()
+  
+  setEPS()
+  postscript(file.path(dir,"QC",paste0(project,"ncount_variance.eps")))
+  print(plotPercentBars( vc[1:50,] ))
+  dev.off()
+}
+```
+
+
+Remove genes that correlate strongly with technical variables from downstream analyses
+
+```{r}
+if (variance){
+  sexgenes = rownames(vs)[1:5]
+  mitogenes = rownames(vm)[1:10]
+  remove.genes = c(sexgenes,mitogenes)
+  var.genes = VariableFeatures(sobject)
+  var.genes = var.genes[!var.genes %in% remove.genes]
+  VariableFeatures(sobject) = var.genes
+}
+```
+
 Run PCA analysis and show elbow plot
 ```{r}
-sobject <- RunPCA(sobject,features = VariableFeatures(sobject),npcs = 50, verbose = FALSE)
+sobject <- RunPCA(sobject,features = var.genes,npcs = 50, verbose = FALSE)
 ElbowPlot(sobject,ndims = 50, reduction = "pca")
 print(sobject[["pca"]], dims = 1:20, nfeatures = 5)
 ```
@@ -385,7 +477,7 @@ column = "celltype"
 ncells = 500
 ```
 
-```{r}
+```{r,eval = FALSE}
 Idents(sobject) = column
 markers_all = FindAllMarkers(
   object = sobject,
