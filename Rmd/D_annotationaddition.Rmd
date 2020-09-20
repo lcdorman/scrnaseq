@@ -1,6 +1,8 @@
 ---
 title: "Adding annotations to scRNAseq analyses"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 ```{r}
 library(Seurat)

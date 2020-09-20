@@ -1,0 +1,88 @@
+---
+title: "recluster with celltype specific genes"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+*Use the barres annotation to remove non-cell-specific mRNA and recluster*
+Find specificity distribution
+
+```{r}
+mean(barres[,10])
+min(barres[,10])
+max(barres[,10])
+quantile(barres[,10],probs = c(0.5,0.90))
+#anything above 4.8 = neuron specific
+```
+Remove neuron-specific genes and recalculate pcs
+
+```{r}
+speclim = 2.5
+genes = rownames(sobject)
+length(genes)
+
+barres_sobject = barres[barres$Gene.symbol %in% genes,]
+barres_sobject = barres[barres$Specificity>speclim,]
+dim(barres_sobject)
+
+genes_remove = barres_sobject$Gene.symbol
+VariableFeatures(sobject) = VariableFeatures(sobject)[!VariableFeatures(sobject) %in% genes_remove]
+```
+
+Renormalize/recalculate sobject
+```{r}
+var.genes = VariableFeatures(sobject)
+regress = c("nCount_RNA","percent.mito")
+
+sobject<-ScaleData(sobject,features = var.genes, vars.to.regress = regress)
+```
+
+Run PCA analysis
+```{r}
+sobject <- RunPCA(sobject,features = var.genes,npcs = 50, verbose = FALSE)
+
+ElbowPlot(sobject,ndims = 50, reduction = "pca")
+print(sobject[["pca"]], dims = 1:20, nfeatures = 5)
+```
+
+Once you are satisfied with pc's, run clustering: 
+```{r}
+pcs = 1:30
+sobject<-RunUMAP(sobject,reduction = "pca",dims = pcs, verbose = F)
+sobject<-FindNeighbors(sobject,dims=pcs,verbose=F)
+
+res = 0.5 #set this to anything
+sobject<-FindClusters(sobject,verbose=F,resolution = res) 
+
+```
+
+
+```{r}
+b = barres[barres$Gene.symbol %in% var.genes,]
+b = b[order(b$Specificity,decreasing = T),]
+b[1:30,]
+```
+
+```{r}
+DimPlot(sobject,cells.highlight = names(sobject$finalclusters)[sobject$finalclusters == '3'])
+
+```
+Save pcs and gene list for scvelo
+
+```{r}
+pcs = sobject@reductions$pca@cell.embeddings
+pcs = cbind("Cellname" = rownames(pcs), pcs)
+write.csv(pcs, file = "~/Desktop/Jupyter/mgAVM02/pcs_noneuronal.csv",row.names = F)
+```
+```{r}
+genes = as.data.frame(VariableFeatures(sobject))
+colnames(genes) = "Genes"
+write.csv(genes, file = "~/Desktop/Jupyter/mgAVM02/genes_noneuronal.csv",row.names = F)
+```
+
+

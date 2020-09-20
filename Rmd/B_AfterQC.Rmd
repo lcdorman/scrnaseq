@@ -384,10 +384,10 @@ First calculate DE genes for every cluster
 Idents(sobject) = column
 markers_all <- FindAllMarkers(
     object = sobject,
-    features = rownames(sobject),
+    features = VariableFeatures(sobject),
     test.use = "MAST",
     only.pos = FALSE, 
-    min.pct = 0.15, 
+    min.pct = 0.25, 
     logfc.threshold = 0.0
 )
 write.csv(markers_all,file = file.path(dir,"Spreadsheets",paste0(iterationname,"_all_markers.csv")))
