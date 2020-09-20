@@ -20,6 +20,8 @@ library(ape)
 library(cowplot)
 library(Matrix)
 library(EnhancedVolcano)
+library(knitr)
+library(readr)
 
 #find out where you are
 getwd()
@@ -30,6 +32,7 @@ datafolder = "Data/Seurat"
 filename = "Microglia_BC_Macrophages_subset.RData"
 organism = "Mouse"
 defile = "Macrophage_only_all_markers.csv"
+cellcyclefile = "https://raw.githubusercontent.com/lcdorman/scrnaseq/master/Spreadsheets/regev_lab_cell_cycle_genes.csv"
 
 m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
 Plotfolder = "Plots"
@@ -329,8 +332,7 @@ You can find what phase of the cell cycle each cell is in:
 Cell cycle regression specifically for mouse genes right now - can adjust slightly for human/zebrafish data by changing the capitalization of the spreadsheet
 
 ```{r}
-cc.genes <- readLines(con = "../Spreadsheets/regev_lab_cell_cycle_genes.txt")
-cc.genes <- read.delim("https://github.com/lcdorman/scrnaseq/blob/master/Spreadsheets/regev_lab_cell_cycle_genes.txt")
+cc.genes <- as.character(read.csv(cellcyclefile)[,1])
 genesofinterest = c("Pcna","Top2a","Mcm6","Mki67")
 
 #for zebrafish and mice, change gene names to lowercase

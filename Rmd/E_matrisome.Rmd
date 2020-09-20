@@ -18,7 +18,7 @@ library(dplyr)
 dir = "~/Desktop/Sequencing/LD_AVM02"
 datafolder = "Data/Seurat"
 filename = "mgAVM02_may26.RData"
-public = F #set to T if using public datasets, edit de_path and m_path
+mat_file = "https://raw.githubusercontent.com/lcdorman/scrnaseq/master/Spreadsheets/matrisome_mm_masterlist.csv"
 ```
 
 Set thresholds for DE genes per cluster
@@ -35,19 +35,12 @@ sobject = mgAVM02
 
 
 ```{r}
-if (public){
-  de_path = "https://github.com/lcdorman/scrnaseq/blob/master/allmarkers_vargenesMG_0501.csv"
-  m_file = "https://github.com/lcdorman/scrnaseq/blob/master/matrisome_mm_masterlist.csv"
-}
-if (!public){
-  m_file = file.path(dir,"Spreadsheets","matrisome_mm_masterlist.csv")
-  de_file = file.path(dir,"Spreadsheets","Macrophage_only_all_markers.csv")
-}
+de_file = file.path(dir,"Spreadsheets","Macrophage_only_all_markers.csv")
 ```
 
 Read in matrisome file
 ```{r}
-matrisome <- read.csv(m_file,stringsAsFactors = F,fill = T)
+matrisome <- read.csv(mat_file,stringsAsFactors = F,fill = T)
 matrisome$Category = as.factor(matrisome$Category)
 matrisome$Division = as.factor(matrisome$Division)
 ```
