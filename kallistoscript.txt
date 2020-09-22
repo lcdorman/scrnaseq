@@ -1,0 +1,10 @@
+//Kallisto code for bulk sequencing, edit filenames//
+//run bash kallistoscript//
+kallisto quant -i transcriptsmousekmer17.idx -o outputRT1 -b 100 --single -l 351 -s 110 IV-2224-1-a3RT_S28_L006_R1_001.fastq.gz
+kallisto quant -i transcriptsmousekmer17.idx -o outputRT2 -b 100 --single -l 306 -s 85 IV-2224-2-b3RT_S29_L006_R1_001.fastq.gz
+kallisto quant -i transcriptsmousekmer17.idx -o outputRT3 -b 100 --single -l 329 -s 103 IV-2224-3-c3RT_S30_L006_R1_001.fastq.gz
+kallisto quant -i transcriptsmousekmer17.idx -o outputVB1 -b 100 --single -l 328 -s 107 IV-2224-4-d3VB_S31_L006_R1_001.fastq.gz
+kallisto quant -i transcriptsmousekmer17.idx -o outputVB2 -b 100 --single -l 364 -s 129 IV-2224-5-e3VB_S32_L006_R1_001.fastq.gz
+kallisto quant -i transcriptsmousekmer17.idx -o outputVB3 -b 100 --single -l 344 -s 113 IV-2224-6-f3VB_S33_L006_R1_001.fastq.gz
+
+//run fastqc - see https://multiqc.info/docs/  //
