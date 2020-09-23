@@ -1,0 +1,19 @@
+Instructions for cellRanger on the Imaris computer
+
+Go to "Oracle VM Virtual Box"
+Select Ubuntu Desktop SC
+	Settings > System > Processor, set to 8 or more CPU
+	When you are done, reset this to lower so that the rest of the computer runs faster
+Open Ubuntu Desktop SC
+Open code for cellranger, run the last line only (cellranger testrun --id=tiny) in terminal
+Put your data in a folder on Ubuntu Desktop SC. You will need to put it in 
+	sf_shared folder to move it onto the desktop of the virtual machine. 
+Now open "cellrangeractualcommands" and edit the folder names so that they correspond
+	to your actual folders with your data in them. Once they do, copy this file into the 
+	folder containing your data. 
+From the terminal, cd into your folder (should end in data_outs), then run 
+	bash cellrangeractualcommands 
+To get your data afterward, you need to move it temporarily into the shared folder. 
+If the screen goes black and you cannot see the virtual box, try pressing home (F1) or home and right ctrl. 
+
+Shut down the virtual box when done.
