@@ -37,23 +37,23 @@ getwd()
 and make sure the folders "QC" and "Plots" and "Heatmaps" and "Trees" and "Spreadsheets" and "Data/Seurat" are present in the "dir" folder
 ```{r}
 #Specify your preferred directory for all input + output
-dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02"
+dir= "/Users/whippoorwill/Desktop/Lab/Website/Nick"
 
 #Specify exactly where your seurat files live
-datafolder = "Data/Seurat"
+datafolder = "Data"
 
 #set up folders
 QCfolder = "QC"
 Plotfolder = "Plots"
 
 #the data file you want to open
-filename = "Microglia_BC_Macrophages_subset.RData"
+filename = "Nick_adult.RData"
 
 #This name needs to match your project name within the seurat object
-project<-"Microglia_BC" 
+project<-"Nick" 
 
 #Specify your organism; please capitalize the first letter (i.e. "Mouse", "Human","Zebrafish","Rat")
-organism = "Mouse"
+organism = "Zebrafish"
 
 #metrics you want to look at for QC
 m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
@@ -68,25 +68,25 @@ regress = c("nCount_RNA","percent.mito")
 sct = TRUE
 
 #How many genes do you want scaled to use for UMAP/clustering? 
-ngenes = 10000
+ngenes = 6000
 
 #Which principal components do you want to calculate on? This is a default setting, change if one of the pc's is for something you think is a technical error (i.e. HSP, RP, etc)
 pcs = c(1:30)
 
 #clustering resolution; the last number will be saved as "seurat_clusters" in metadata
-res = c(0.5,1.5,1.0,0.1)
+res = c(1.5,1.0,0.5)
 
 #Important genes to determine your cells of interest
-igenes = c("Cx3cr1","Rbfox3","Aldh1l1","Pecam1")
+igenes = c("ptprc","mpeg1.1","p2ry12")
 
 #metadata dimensions you want to cluster on
-dims = c("seurat_clusters","sample_description","age","condition")
+dims = c("seurat_clusters","sample_description","age")
 
 #edit to include all desired celltypes to subset on later; if not subsetting, set to "all"
 keep = "all"
 
 #make a unique name; maybe this is the celltype you've already subset, or the age you're looking at, etc. 
-iterationname = "Macrophage_only"
+iterationname = "Nick_adult_all"
 
 #Establish cutoffs for heatmaps
 pval = 1e-8 #max p-value for significance
@@ -94,12 +94,12 @@ lfc = 0.2 #minimum log fold change
 minpct = 0 #if you want to subset by percent cells in that cluster expressing the gene
 maxpct = 1
 single = F #should each gene be a marker of a single cluster only
-ngenes = 3 #how many genes should be in the heatmap per cluster
+hgenes = 3 #how many genes should be in the heatmap per cluster
 ncells = 100 #max # of cells per heatmap column
 column = "celltypecluster" #division you care about
 
 #Variance partition: Remove genes only associated with a technical variable or sex of the mouse
-variance = T
+variance = F
 ```
 
 
@@ -505,7 +505,7 @@ if (single){markers <- markers[markers$gene %in% names(table(markers$gene))[tabl
 
 table(markers$cluster)
 
-topgenes <- markers %>% group_by(cluster) %>% top_n(ngenes, avg_logFC)
+topgenes <- markers %>% group_by(cluster) %>% top_n(hgenes, avg_logFC)
 topgenes = topgenes[order(topgenes$cluster),]
 
 #Subset each cluster to ncells
