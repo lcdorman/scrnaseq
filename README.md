@@ -4,7 +4,7 @@ Molofsky lab database of single-cell rnaseq workflow (https://www.annamolofskyla
 
 
 
-Welcome! Check out the "Vignettes" folder for worked examples of each R Script (scripts can be found in the "Rmd" folder). Start with the A-B-C-D scripts, the remainder can be used as needed to generate different kinds of plots, visible in the associated vignette. 
+Welcome! If you are starting from a count matrix, start with the A-B-C-D scripts, the remainder can be used as needed to generate different kinds of plots. 
 
 
 
