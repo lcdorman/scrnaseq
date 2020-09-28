@@ -77,7 +77,7 @@ pcs = c(1:30)
 res = c(1.5,1.0,0.5)
 
 #Important genes to determine your cells of interest
-igenes = c("ptprc","mpeg1.1","p2ry12")
+igenes = c("ptprc","mpeg1.1","p2ry12","mki67")
 
 #metadata dimensions you want to cluster on
 dims = c("seurat_clusters","sample_description","age")
@@ -190,7 +190,7 @@ if (variance){
 ```
 
 ```{r}
-varPart = read.csv(file.path(dir,"Spreadsheets",paste0(Project(sobject),"_variancepartition.csv")),stringsAsFactors = F,row.names = 1)
+#varPart = read.csv(file.path(dir,"Spreadsheets",paste0(Project(sobject),"_variancepartition.csv")),stringsAsFactors = F,row.names = 1)
 ```
 
 ```{r}
@@ -257,7 +257,7 @@ if (variance){
 
 Run PCA analysis and show elbow plot
 ```{r}
-sobject <- RunPCA(sobject,features = var.genes,npcs = 50, verbose = FALSE)
+sobject <- RunPCA(sobject,features = VariableFeatures(sobject),npcs = 50, verbose = FALSE)
 ElbowPlot(sobject,ndims = 50, reduction = "pca")
 print(sobject[["pca"]], dims = 1:20, nfeatures = 5)
 ```
@@ -290,7 +290,7 @@ plot.phylo(tree, use.edge.length = T, direction = "rightwards")
 
 ```{r}
 #If you want to see a certain cluster: 
-cluster = '13'
+cluster = '3'
 
 #select only the cells from that cluster
 cells = sobject$seurat_clusters
@@ -304,16 +304,20 @@ If you are happy with the QC, you can move on to either subdividing further to i
 *Note that the chunk below requires you to manually decide which clusters to keep or exclude. The violin plots will help decide based on marker genes. You can also choose to annotate (as many types as you want) and skip subsetting.*
 ```{r}
 #Edit this part carefully. You can add any number of types. Each cluster can only be one type. 
-type1 = c(0,1,2,3,4)
-name1 = "Microglia"
-type2 = c(5,6) 
-name2 = "Macrophages"
+type1 = c(4,6,12,8)
+name1 = "Myeloid"
+type2 = c(11,3,7,2,0,1,5) 
+name2 = "Microglia" 
+type3 = c(9,10)
+name3 = "Macrophage"
+
 
 #Initialize the cluster levels as a vector and replace the cluster levels with the appropriate name. 
 clusters = as.factor(sobject$seurat_clusters)
 type = levels(clusters)
 type[type1+1] = name1
 type[type2+1] = name2
+type[type3+1] = name3
 levels(clusters) = type
 
 #Add a metadata column
