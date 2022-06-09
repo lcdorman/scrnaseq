@@ -19,25 +19,23 @@ library(dplyr)
 library(ape)
 library(cowplot)
 library(Matrix)
-library(EnhancedVolcano)
 library(knitr)
 library(readr)
 
 #find out where you are
 getwd()
 
-#Specify where your matrix files are
-dir= "/Users/whippoorwill/Desktop/Sequencing/LD_AVM02/"
+#Specify where your seurat files are
+dir= "path_to_file"
 datafolder = "Data/Seurat"
-filename = "Microglia_BC_Macrophages_subset.RData"
-organism = "Mouse"
-defile = "Macrophage_only_all_markers.csv"
+filename = "name_of_seurat_object.RData"
+organism = "Mouse" #"Mouse", "Human", or "Zebrafish"
 cellcyclefile = "https://raw.githubusercontent.com/lcdorman/scrnaseq/master/Spreadsheets/regev_lab_cell_cycle_genes.csv"
 
-m = c("nCount_RNA","nFeature_RNA","percent.mito","percent.ribo")
-Plotfolder = "Plots"
+m = c("nCount_RNA","nFeature_RNA","percent.mito")
+Plotfolder = "Plots" #make sure this folder exists in your dir directory
 genesofinterest = c("Pcna","Top2a","Mcm6","Mki67")
-name = "LD_Macrophage_only"
+
 
 if(organism == "Mouse"){library(org.Mm.eg.db)}
 if(organism == "Human"){library(org.Hs.eg.db)}
